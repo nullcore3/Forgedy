@@ -5,7 +5,7 @@ import clipboard
 
 ctk.set_default_color_theme(f"themes/{random.choice(['autumn', 'breeze', 'carrot', 'cherry', 'coffee', 'lavender', 'marsh', 'metal', 'midnight', 'orange', 'patina', 'pink', 'red', 'rime', 'rose', 'sky', 'violet', 'yellow'])}.json")
 
-# TODO: When you press 'cntrl + alt + t' it should open the Utools application. This should be an option set in the installer.
+# TODO: When you press 'cntrl + alt + t' it should open the Utoolities application. This should be an option set in the installer.
 
 class seperatorLine(ctk.CTkFrame):
     def __init__(self, master=None):
@@ -180,10 +180,10 @@ class TxtUtils(ctk.CTkFrame):
         output_text = self.outputLabel.cget("text")
         clipboard.copy(output_text)
         
-class Utools(ctk.CTk):
+class Utoolities(ctk.CTk):
     def __init__(self): 
         super().__init__()
-        self.title("Utools")
+        self.title("Utoolities")
         self.geometry("800x600")
         self.columnconfigure((0, 1, 2, 3), weight=1)
         
@@ -207,5 +207,5 @@ class Utools(ctk.CTk):
         txt_utils.grid(row=1, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
         
 if __name__ == "__main__":
-    app = Utools()
+    app = Utoolities()
     app.mainloop()
