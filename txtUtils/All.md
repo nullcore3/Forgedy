@@ -2,7 +2,7 @@
 
 ## Table of Contents
 1.  [Text Conversion](#text-conversion)
-2.  [Text Analysis](#text-analysis)
+2.  [Text Counting](#text-counting)
 3.  [Text Manipulation](#text-manipulation)
 4.  [Text Formatting](#text-formatting)
 5.  [Text Comparison](#text-comparison)
@@ -31,7 +31,7 @@
 
 ---
 
-## Text Analysis
+## Text Counting
 1. Count words in text.
 2. Count characters in text.
 3. Count lines in text.

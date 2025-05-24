@@ -33,8 +33,8 @@ class TxtUtils(ctk.CTkFrame):
         self.textConversionLink = ctk.CTkButton(self.txtUtilsContainer, text="Text Case Conversion", width=100, height=50, command=self.textCaseConversion)
         self.textConversionLink.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
         
-        self.textAnalysisLink = ctk.CTkButton(self.txtUtilsContainer, text="Text Analysis", width=100, height=50)
-        self.textAnalysisLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.textCountingLink = ctk.CTkButton(self.txtUtilsContainer, text="Text Counting", width=100, height=50, command=self.textCounting)
+        self.textCountingLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
     
     def backToTxtUtils(self):
         """
@@ -52,7 +52,7 @@ class TxtUtils(ctk.CTkFrame):
 
         # Re-grid the widgets in the main container
         self.textConversionLink.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-        self.textAnalysisLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.textCountingLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
         
     def selectFile(self):
         """
@@ -180,6 +180,76 @@ class TxtUtils(ctk.CTkFrame):
         output_text = self.outputLabel.cget("text")
         clipboard.copy(output_text)
         
+    def textCounting(self):
+        """
+        1. Count characters in a text file.
+        2. Count words in a text file.
+        3. Count lines in a text file.
+        """        
+        for widget in self.txtUtilsContainer.winfo_children():
+            widget.grid_forget()
+
+        self.txtUtilsContainer.configure(fg_color="transparent")
+        self.txtUtilsContainer.place_forget()
+
+        # Create a new container for text conversion utilities
+        self.txtConversionUtilsContainer = ctk.CTkFrame(self)
+        self.txtConversionUtilsContainer.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+        self.txtConversionUtilsContainer.grid_rowconfigure(0, weight=1)
+
+        # Add the back button to the new container
+        self.backButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Back", width=50, height=25, command=self.backToTxtUtils)
+        self.backButton.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+
+        # Add other widgets to the new container
+        self.selectTxtFile = ctk.CTkButton(self.txtConversionUtilsContainer, text="Select Text File", width=100, height=50, command=self.selectFile)
+        self.selectTxtFile.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+
+        self.orLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="or", font=("Roboto", 24))
+        self.orLabel.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+
+        self.inputText = ctk.CTkEntry(self.txtConversionUtilsContainer, width=200)
+        self.inputText.grid(row=1, column=2, padx=10, pady=10, sticky="ew")
+        
+        self.countCharactersButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Characters", width=100, height=50, command=self.countCharacters)
+        self.countCharactersButton.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
+        
+        self.countWordsButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Words", width=100, height=50, command=self.countWords)
+        self.countWordsButton.grid(row=2, column=1, padx=10, pady=10, sticky="ew")
+        
+        self.countLinesButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Lines", width=100, height=50, command=self.countLines)
+        self.countLinesButton.grid(row=2, column=2, padx=10, pady=10, sticky="ew")
+        
+        self.outputLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="")
+        self.outputLabel.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        
+        self.copyButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Copy", width=50, height=35, command=self.copyToClipboard)
+        self.copyButton.grid(row=3, column=3, padx=10, pady=10, sticky="ew")
+        
+    def countCharacters(self):
+        input_text = self.inputText.get()
+        if not input_text:
+            self.outputLabel.configure(text="Please enter some text or select a file.")
+            return
+        char_count = len(input_text)
+        self.outputLabel.configure(text=f"Character Count: {char_count}")
+    
+    def countWords(self):
+        input_text = self.inputText.get()
+        if not input_text:
+            self.outputLabel.configure(text="Please enter some text or select a file.")
+            return
+        word_count = len(input_text.split())
+        self.outputLabel.configure(text=f"Word Count: {word_count}")
+    
+    def countLines(self):
+        input_text = self.inputText.get()
+        if not input_text:
+            self.outputLabel.configure(text="Please enter some text or select a file.")
+            return
+        line_count = len(input_text.splitlines())
+        self.outputLabel.configure(text=f"Line Count: {line_count}")
+                
 class Utoolities(ctk.CTk):
     def __init__(self): 
         super().__init__()
