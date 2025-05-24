@@ -1,8 +1,8 @@
-# ToolHive
+# Utools
 
 ![icon)](https://github.com/user-attachments/assets/5ccfe30a-7dd8-4756-b948-0ca701a8b95b)
 
-U-Tools is a comprehensive toolkit designed to streamline your development workflow. It provides a collection of utilities and tools to enhance productivity and simplify complex tasks.
+Utools is a comprehensive toolkit designed to streamline your development workflow. It provides a collection of utilities and tools to enhance productivity and simplify complex tasks.
 
 ## Contributing
 
