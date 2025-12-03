@@ -48,6 +48,27 @@ class TxtUtils(ctk.CTkFrame):
     # -----------------------------------------------------------
     # UNIVERSAL SUBMENU HANDLERS
     # -----------------------------------------------------------
+    
+    def selectFile(self):
+        """Open a file dialog and load file contents into inputText if it exists."""
+        txt = filedialog.askopenfile(mode='r', filetypes=[
+            ("Text files", "*.txt"),
+            ("All files", "*.*")
+        ])
+
+        if txt:
+            content = txt.read()
+
+            # inputText can be Entry or Textbox depending on the submenu
+            if hasattr(self, "inputText"):
+                try:
+                    # For Entry widgets
+                    self.inputText.delete(0, ctk.END)
+                    self.inputText.insert(0, content)
+                except:
+                    # For Textboxes
+                    self.inputText.delete("1.0", "end")
+                    self.inputText.insert("1.0", content)
 
     def openSubmenu(self):
         """Hides main menu and creates a new submenu container."""
