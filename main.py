@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog
 import random
+import re
 import clipboard
 
 ctk.set_default_color_theme(f"themes/{random.choice(['autumn', 'breeze', 'carrot', 'cherry', 'coffee', 'lavender', 'marsh', 'metal', 'midnight', 'orange', 'patina', 'pink', 'red', 'rime', 'rose', 'sky', 'violet', 'yellow'])}.json")
@@ -24,232 +25,219 @@ class TxtUtils(ctk.CTkFrame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
-        
+
+        # --- MAIN MENU ---
         self.txtUtilsContainer = ctk.CTkFrame(self)
         self.txtUtilsContainer.columnconfigure((0, 1, 2, 3), weight=1)
-        self.txtUtilsContainer.rowconfigure((0, 1, 2, 3, 4), weight=1)
-        self.txtUtilsContainer.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
-        
-        self.textConversionLink = ctk.CTkButton(self.txtUtilsContainer, text="Text Case Conversion", width=100, height=50, command=self.textCaseConversion)
-        self.textConversionLink.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-        
-        self.textCountingLink = ctk.CTkButton(self.txtUtilsContainer, text="Text Counting", width=100, height=50, command=self.textCounting)
-        self.textCountingLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
-    
-    def backToTxtUtils(self):
-        """
-        1. Hide the sub-menu options.
-        2. Show the main text utilities options.
-        """
-        # Hide the text conversion utilities container
-        for widget in self.txtConversionUtilsContainer.winfo_children():
-            widget.grid_forget()
-        self.txtConversionUtilsContainer.grid_forget()
+        self.txtUtilsContainer.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        # Restore the main text utilities container
-        self.txtUtilsContainer.configure(fg_color="transparent")  # Ensure the container is visible
-        self.txtUtilsContainer.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+        # Main buttons
+        menu_buttons = [
+            ("Text Case Conversion", self.textCaseConversion),
+            ("Text Counting", self.textCounting),
+            ("Text Manipulation", self.textManipulation)
+        ]
 
-        # Re-grid the widgets in the main container
-        self.textConversionLink.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-        self.textCountingLink.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
-        
-    def selectFile(self):
-        """
-        Function to select a text file using a file dialog.
-        """
-        txt = filedialog.askopenfile(mode='r', filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
-        # If inputText exists, set its text to the content of the selected file
-        if txt:
-            content = txt.read()
-            if hasattr(self, 'inputText'):
-                self.inputText.delete(0, ctk.END)
-                self.inputText.insert(0, content)  # Insert the content into the inputText widget
+        for i, (text, command) in enumerate(menu_buttons):
+            ctk.CTkButton(self.txtUtilsContainer, text=text, height=50,
+                          command=command).grid(row=0, column=i, padx=10, pady=10, sticky="ew")
 
-    
+        # Submenu container (hidden unless opened)
+        self.currentSubmenu = None
+
+    # -----------------------------------------------------------
+    # UNIVERSAL SUBMENU HANDLERS
+    # -----------------------------------------------------------
+
+    def openSubmenu(self):
+        """Hides main menu and creates a new submenu container."""
+        self.txtUtilsContainer.grid_forget()
+
+        # Destroy previous submenu
+        if self.currentSubmenu is not None:
+            self.currentSubmenu.destroy()
+
+        self.currentSubmenu = ctk.CTkFrame(self)
+        self.currentSubmenu.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        return self.currentSubmenu
+
+    def closeSubmenu(self):
+        """Return back to main menu."""
+        if self.currentSubmenu:
+            self.currentSubmenu.destroy()
+            self.currentSubmenu = None
+
+        self.txtUtilsContainer.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+
+    # -----------------------------------------------------------
+    # TEXT CASE CONVERSION MENU
+    # -----------------------------------------------------------
+
     def textCaseConversion(self):
-        """
-        1. Convert text to uppercase.
-        2. Convert text to lowercase.
-        3. Convert text to title case.
-        4. Convert text to camelCase, snake_case, or kebab-case.
-        """
-        for widget in self.txtUtilsContainer.winfo_children():
-            widget.grid_forget()
+        frame = self.openSubmenu()
 
-        self.txtUtilsContainer.configure(fg_color="transparent")
-        self.txtUtilsContainer.place_forget()
+        ctk.CTkButton(frame, text="Back", command=self.closeSubmenu).grid(
+            row=0, column=0, padx=10, pady=10, sticky="w"
+        )
 
-        # Create a new container for text conversion utilities
-        self.txtConversionUtilsContainer = ctk.CTkFrame(self)
-        self.txtConversionUtilsContainer.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
-        self.txtConversionUtilsContainer.grid_rowconfigure(0, weight=1)
+        # Input row
+        ctk.CTkButton(frame, text="Select File", command=self.selectFile)\
+            .grid(row=1, column=0, padx=10, pady=10)
 
-        # Add the back button to the new container
-        self.backButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Back", width=50, height=25, command=self.backToTxtUtils)
-        self.backButton.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-
-        # Add other widgets to the new container
-        self.selectTxtFile = ctk.CTkButton(self.txtConversionUtilsContainer, text="Select Text File", width=100, height=50, command=self.selectFile)
-        self.selectTxtFile.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-
-        self.orLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="or", font=("Roboto", 24))
-        self.orLabel.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
-
-        self.inputText = ctk.CTkEntry(self.txtConversionUtilsContainer, width=200)
+        ctk.CTkLabel(frame, text="or").grid(row=1, column=1)
+        self.inputText = ctk.CTkEntry(frame)
         self.inputText.grid(row=1, column=2, padx=10, pady=10, sticky="ew")
-        
-        self.upperCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="UPPERCASE", width=100, height=50, command=self.convertToUppercase)
-        self.upperCaseButton.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
-        self.lowerCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="lowercase", width=100, height=50, command=self.convertToLowercase)
-        self.lowerCaseButton.grid(row=2, column=1, padx=10, pady=10, sticky="ew")
+        # List of conversion buttons
+        conversions = [
+            ("UPPERCASE", lambda t: t.upper()),
+            ("lowercase", lambda t: t.lower()),
+            ("Title Case", lambda t: t.title()),
+            ("camelCase", self.toCamel),
+            ("snake_case", lambda t: "_".join(t.split()).lower()),
+            ("kebab-case", lambda t: "-".join(t.split()).lower()),
+            ("PascalCase", lambda t: "".join(w.capitalize() for w in t.split())),
+            ("flatcase", lambda t: "".join(t.split()).lower()),
+            ("CONSTANT_CASE", lambda t: "_".join(t.split()).upper())
+        ]
 
-        self.titleCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Title Case", width=100, height=50, command=self.convertToTitleCase)
-        self.titleCaseButton.grid(row=2, column=2, padx=10, pady=10, sticky="ew")
+        # Auto-generate grid of conversion buttons
+        for i, (label, func) in enumerate(conversions, start=2):
+            ctk.CTkButton(
+                frame, text=label,
+                command=lambda f=func: self.showOutput(f(self.inputText.get()))
+            ).grid(row=i//3 + 2, column=i % 3, padx=10, pady=10, sticky="ew")
 
-        self.camelCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="camelCase", width=100, height=50, command=self.convertToCamelCase)
-        self.camelCaseButton.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+        # Output
+        self.outputLabel = ctk.CTkLabel(frame, text="")
+        self.outputLabel.grid(row=5, column=0, columnspan=3, padx=10, pady=10)
+        ctk.CTkButton(frame, text="Copy", command=self.copyToClipboard)\
+            .grid(row=5, column=3, padx=10, pady=10)
 
-        self.snakeCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="snake_case", width=100, height=50, command=self.convertToSnakeCase)
-        self.snakeCaseButton.grid(row=3, column=1, padx=10, pady=10, sticky="ew")
+    # Helpers for conversions
+    def toCamel(self, text):
+        words = text.split()
+        return words[0].lower() + "".join(w.capitalize() for w in words[1:])
 
-        self.kebabCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="kebab-case", width=100, height=50, command=self.convertToKebabCase)
-        self.kebabCaseButton.grid(row=3, column=2, padx=10, pady=10, sticky="ew")
+    def showOutput(self, text):
+        self.outputLabel.configure(text=text)
 
-        self.pascalCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="PascalCase", width=100, height=50, command=self.convertToPascalCase)
-        self.pascalCaseButton.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
-        
-        self.flatCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="flatcase", width=100, height=50, command=self.convertToFlatCase)
-        self.flatCaseButton.grid(row=4, column=1, padx=10, pady=10, sticky="ew")
-        
-        self.constanstCaseButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="CONSTANT_CASE", width=100, height=50, command=self.convertToConstantCase)
-        self.constanstCaseButton.grid(row=4, column=2, padx=10, pady=10, sticky="ew")
+    # -----------------------------------------------------------
+    # TEXT COUNTING MENU
+    # -----------------------------------------------------------
 
-        self.outputLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="")
-        self.outputLabel.grid(row=5, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
-        
-        self.copyButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Copy", width=50, height=35, command=self.copyToClipboard)
-        self.copyButton.grid(row=5, column=3, padx=10, pady=10, sticky="ew")
-
-    def convertToUppercase(self):
-        input_text = self.inputText.get()
-        self.outputLabel.configure(text=input_text.upper())
-
-    def convertToLowercase(self):
-        input_text = self.inputText.get()
-        self.outputLabel.configure(text=input_text.lower())
-
-    def convertToTitleCase(self):
-        input_text = self.inputText.get()
-        self.outputLabel.configure(text=input_text.title())
-
-    def convertToCamelCase(self):
-        input_text = self.inputText.get()
-        words = input_text.split()
-        camel_case = words[0].lower() + ''.join(word.capitalize() for word in words[1:])
-        self.outputLabel.configure(text=camel_case)
-
-    def convertToSnakeCase(self):
-        input_text = self.inputText.get()
-        snake_case = '_'.join(input_text.split()).lower()
-        self.outputLabel.configure(text=snake_case)
-
-    def convertToKebabCase(self):
-        input_text = self.inputText.get()
-        kebab_case = '-'.join(input_text.split()).lower()
-        self.outputLabel.configure(text=kebab_case)
-    
-    def convertToPascalCase(self):
-        input_text = self.inputText.get()
-        words = input_text.split()
-        pascal_case = ''.join(word.capitalize() for word in words)
-        self.outputLabel.configure(text=pascal_case)
-        
-    def convertToFlatCase(self):
-        input_text = self.inputText.get()
-        flat_case = ''.join(input_text.split()).lower()
-        self.outputLabel.configure(text=flat_case)
-        
-    def convertToConstantCase(self):
-        input_text = self.inputText.get()
-        constant_case = '_'.join(input_text.split()).upper()
-        self.outputLabel.configure(text=constant_case) 
-    
-    def copyToClipboard(self):
-        output_text = self.outputLabel.cget("text")
-        clipboard.copy(output_text)
-        
     def textCounting(self):
-        """
-        1. Count characters in a text file.
-        2. Count words in a text file.
-        3. Count lines in a text file.
-        """        
-        for widget in self.txtUtilsContainer.winfo_children():
-            widget.grid_forget()
+        frame = self.openSubmenu()
+        ctk.CTkButton(frame, text="Back", command=self.closeSubmenu)\
+            .grid(row=0, column=0, padx=10, pady=10)
 
-        self.txtUtilsContainer.configure(fg_color="transparent")
-        self.txtUtilsContainer.place_forget()
+        # Input
+        ctk.CTkButton(frame, text="Select File", command=self.selectFile)\
+            .grid(row=1, column=0, padx=10, pady=10)
 
-        # Create a new container for text conversion utilities
-        self.txtConversionUtilsContainer = ctk.CTkFrame(self)
-        self.txtConversionUtilsContainer.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
-        self.txtConversionUtilsContainer.grid_rowconfigure(0, weight=1)
-
-        # Add the back button to the new container
-        self.backButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Back", width=50, height=25, command=self.backToTxtUtils)
-        self.backButton.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-
-        # Add other widgets to the new container
-        self.selectTxtFile = ctk.CTkButton(self.txtConversionUtilsContainer, text="Select Text File", width=100, height=50, command=self.selectFile)
-        self.selectTxtFile.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-
-        self.orLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="or", font=("Roboto", 24))
-        self.orLabel.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
-
-        self.inputText = ctk.CTkEntry(self.txtConversionUtilsContainer, width=200)
+        ctk.CTkLabel(frame, text="or").grid(row=1, column=1)
+        self.inputText = ctk.CTkEntry(frame)
         self.inputText.grid(row=1, column=2, padx=10, pady=10, sticky="ew")
+
+        # Counting operations
+        counters = [
+            ("Count Characters", lambda t: len(t)),
+            ("Count Words", lambda t: len(t.split())),
+            ("Count Lines", lambda t: len(t.splitlines()))
+        ]
+
+        for i, (label, func) in enumerate(counters):
+            ctk.CTkButton(
+                frame, text=label,
+                command=lambda f=func: self.showOutput(f(self.inputText.get()))
+            ).grid(row=2, column=i, padx=10, pady=10)
+
+        self.outputLabel = ctk.CTkLabel(frame, text="")
+        self.outputLabel.grid(row=3, column=0, columnspan=3, padx=10, pady=10)
+
+        ctk.CTkButton(frame, text="Copy", command=self.copyToClipboard)\
+            .grid(row=3, column=3, padx=10, pady=10)
+
+    # -----------------------------------------------------------
+    # TEXT MANIPULATION MENU
+    # -----------------------------------------------------------
+
+    def textManipulation(self):
+        frame = self.openSubmenu()
+
+        ctk.CTkButton(frame, text="Back", command=self.closeSubmenu)\
+            .grid(row=0, column=0, padx=10, pady=10)
+
+        # Input
+        ctk.CTkLabel(frame, text="Input Text:").grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=150)
+        self.inputText.grid(row=2, column=0, padx=10, pady=5, sticky="ew")
+
+        # Operation menu
+        ctk.CTkLabel(frame, text="Choose Operation:").grid(row=3, column=0, sticky="w")
+        self.operationChoice = ctk.CTkOptionMenu(frame,
+            values=["Find & Replace", "Remove Whitespace", "Extract Pattern"]
+        )
+        self.operationChoice.grid(row=4, column=0, padx=10, pady=5, sticky="ew")
+
+        # Dynamic pattern area
+        self.patternFrame = ctk.CTkFrame(frame)
+        self.patternFrame.grid(row=5, column=0, sticky="ew")
+
+        # Fields
+        self.findEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Find")
+        self.replaceEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Replace")
+        self.regexEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Regex")
+        self.regexExplanation = ctk.CTkLabel(self.patternFrame, text="Regex example: \\S+@\\S+")
+
+        def updateFields(choice):
+            for w in self.patternFrame.winfo_children():
+                w.grid_forget()
+
+            if choice == "Find & Replace":
+                self.findEntry.grid(row=0, column=0, padx=5)
+                self.replaceEntry.grid(row=0, column=1, padx=5)
+
+            elif choice == "Extract Pattern":
+                self.regexEntry.grid(row=0, column=0, padx=5)
+                self.regexExplanation.grid(row=1, column=0)
+
+        self.operationChoice.configure(command=updateFields)
+        updateFields("Find & Replace")
+
+        # Output
+        ctk.CTkLabel(frame, text="Output:").grid(row=6, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=150)
+        self.outputText.grid(row=7, column=0, padx=10, pady=5, sticky="ew")
+
+        ctk.CTkButton(frame, text="Copy Output",
+                      command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()))\
+            .grid(row=7, column=1, padx=10)
+
+        def process():
+            text = self.inputText.get("1.0", "end").strip()
+            op = self.operationChoice.get()
+
+            if op == "Find & Replace":
+                result = text.replace(self.findEntry.get(), self.replaceEntry.get())
+
+            elif op == "Remove Whitespace":
+                result = "".join(text.split())
+
+            else:  # Extract Pattern
+                matches = re.findall(self.regexEntry.get(), text)
+                result = "\n".join(matches) if matches else "No matches found."
+
+            self.outputText.delete("1.0", "end")
+            self.outputText.insert("1.0", result)
+
+        ctk.CTkButton(frame, text="Run", command=process)\
+            .grid(row=8, column=0, padx=10, pady=10, sticky="ew")
+
+            
+            
         
-        self.countCharactersButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Characters", width=100, height=50, command=self.countCharacters)
-        self.countCharactersButton.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
-        
-        self.countWordsButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Words", width=100, height=50, command=self.countWords)
-        self.countWordsButton.grid(row=2, column=1, padx=10, pady=10, sticky="ew")
-        
-        self.countLinesButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Count Lines", width=100, height=50, command=self.countLines)
-        self.countLinesButton.grid(row=2, column=2, padx=10, pady=10, sticky="ew")
-        
-        self.outputLabel = ctk.CTkLabel(self.txtConversionUtilsContainer, text="")
-        self.outputLabel.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
-        
-        self.copyButton = ctk.CTkButton(self.txtConversionUtilsContainer, text="Copy", width=50, height=35, command=self.copyToClipboard)
-        self.copyButton.grid(row=3, column=3, padx=10, pady=10, sticky="ew")
-        
-    def countCharacters(self):
-        input_text = self.inputText.get()
-        if not input_text:
-            self.outputLabel.configure(text="Please enter some text or select a file.")
-            return
-        char_count = len(input_text)
-        self.outputLabel.configure(text=f"Character Count: {char_count}")
-    
-    def countWords(self):
-        input_text = self.inputText.get()
-        if not input_text:
-            self.outputLabel.configure(text="Please enter some text or select a file.")
-            return
-        word_count = len(input_text.split())
-        self.outputLabel.configure(text=f"Word Count: {word_count}")
-    
-    def countLines(self):
-        input_text = self.inputText.get()
-        if not input_text:
-            self.outputLabel.configure(text="Please enter some text or select a file.")
-            return
-        line_count = len(input_text.splitlines())
-        self.outputLabel.configure(text=f"Line Count: {line_count}")
-                
+            
 class Utoolities(ctk.CTk):
     def __init__(self): 
         super().__init__()
