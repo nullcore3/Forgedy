@@ -6,7 +6,7 @@ import clipboard
 
 ctk.set_default_color_theme(f"themes/{random.choice(['autumn', 'breeze', 'carrot', 'cherry', 'coffee', 'lavender', 'marsh', 'metal', 'midnight', 'orange', 'patina', 'pink', 'red', 'rime', 'rose', 'sky', 'violet', 'yellow'])}.json")
 
-# TODO: When you press 'cntrl + alt + t' it should open the Utoolities application. This should be an option set in the installer.
+# TODO: When you press 'cntrl + alt + t' it should open the Forgedy application. This should be an option set in the installer.
 
 class seperatorLine(ctk.CTkFrame):
     def __init__(self, master=None):
@@ -250,10 +250,10 @@ class TxtUtils(ctk.CTkFrame):
         ctk.CTkButton(frame, text="Run", command=process)\
             .grid(row=8, column=0, columnspan=2, padx=10, pady=10, sticky="ew")    
             
-class Utoolities(ctk.CTk):
+class Forgedy(ctk.CTk):
     def __init__(self): 
         super().__init__()
-        self.title("Utoolities")
+        self.title("Forgedy")
         self.geometry("800x600")
         self.columnconfigure((0, 1, 2, 3), weight=1)
         
@@ -277,5 +277,5 @@ class Utoolities(ctk.CTk):
 
         
 if __name__ == "__main__":
-    app = Utoolities()
+    app = Forgedy()
     app.mainloop()
