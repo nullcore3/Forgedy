@@ -6,10 +6,6 @@ Forgedy is a comprehensive toolkit designed to streamline your development workf
 
 Contributions are extremely welcome!
 
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
 ## Contact
 
 For questions or feedback, please contact [lucaheyworth@gmail.com].
