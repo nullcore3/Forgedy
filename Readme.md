@@ -5,6 +5,7 @@ Forgedy is a comprehensive toolkit designed to streamline your development workf
 ## Contributing
 
 Contributions are extremely welcome!
+Please read the code of conduct.
 
 ## Contact
 
