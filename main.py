@@ -1,10 +1,10 @@
-import customtkinter as ctk
-from tkinter import filedialog
-import random
+import ctypes
 import re
 import sys
+from tkinter import filedialog
+
 import clipboard
-import ctypes
+import customtkinter as ctk
 
 myappid = 'mycompany.myproduct.subproduct.version'
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -13,60 +13,55 @@ PADX = 12
 PADY = 8
 BTN_HEIGHT = 40
 CORNER = 12
+THEME_PATH = "themes/breeze.json"
 
-ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-ctk.set_default_color_theme("themes/breeze.json")
-# ctk.set_default_color_theme(f"themes/{random.choice(['autumn', 'breeze', 'carrot', 'cherry', 'coffee', 'lavender', 'marsh', 'metal', 'midnight', 'orange', 'patina', 'pink', 'red', 'rime', 'rose', 'sky', 'violet', 'yellow'])}.json")
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme(THEME_PATH)
 
-# TODO: When you press 'cntrl + alt + t' it should open the Forgedy application. This should be an option set in the installer.
 
-class seperatorLine(ctk.CTkFrame):
+class SeparatorLine(ctk.CTkFrame):
     def __init__(self, master=None):
         super().__init__(master, height=4, corner_radius=5)
-        self.line = ctk.CTkFrame(self, width=780, height=4, corner_radius=5)
-        self.line.grid(row=0, column=0, columnspan=5, padx=0, pady=0, sticky="nsew")
-        self.line.grid_propagate(False)
-        
+        line = ctk.CTkFrame(self, width=780, height=4, corner_radius=5)
+        line.grid(row=0, column=0, sticky="nsew")
+        line.grid_propagate(False)
+
+
 class TxtUtils(ctk.CTkScrollableFrame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
+        self._shift_pressed = False
+        self._middle_scroll_active = False
+        self._middle_last_y = 0
+        self.currentSubmenu = None
+
+        self._bind_scroll_events()
+        self._create_main_menu()
+
+    def _bind_scroll_events(self):
         self.bind_all("<ButtonPress-2>", self._start_middle_scroll, add="+")
         self.bind_all("<B2-Motion>", self._middle_scroll, add="+")
         self.bind_all("<ButtonRelease-2>", self._end_middle_scroll, add="+")
         self.bind_all("<Button-4>", self._mouse_wheel_all, add="+")
         self.bind_all("<Button-5>", self._mouse_wheel_all, add="+")
+        self.bind_all("<Shift_L>", self._set_shift_active, add="+")
+        self.bind_all("<Shift_R>", self._set_shift_active, add="+")
+        self.bind_all("<KeyRelease-Shift_L>", self._set_shift_inactive, add="+")
+        self.bind_all("<KeyRelease-Shift_R>", self._set_shift_inactive, add="+")
+
         self._parent_canvas.bind("<ButtonPress-2>", self._start_middle_scroll, add="+")
         self._parent_canvas.bind("<B2-Motion>", self._middle_scroll, add="+")
         self._parent_canvas.bind("<ButtonRelease-2>", self._end_middle_scroll, add="+")
         self._parent_canvas.bind("<Button-4>", self._mouse_wheel_all, add="+")
         self._parent_canvas.bind("<Button-5>", self._mouse_wheel_all, add="+")
-        self._middle_scroll_active = False
-        self._middle_last_y = None
 
-        # --- MAIN MENU ---
-        self.txtUtilsContainer = ctk.CTkFrame(self)
-        self.txtUtilsContainer.columnconfigure((0, 1, 2, 3), weight=1)
-        self.txtUtilsContainer.grid(row=0, column=0, columnspan=5, padx=PADX, pady=PADY, sticky="nsew")
+    def _set_shift_active(self, event=None):
+        self._shift_pressed = True
 
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
+    def _set_shift_inactive(self, event=None):
+        self._shift_pressed = False
 
-        # Main buttons
-        menu_buttons = [
-            ("Text Case Conversion", self.textCaseConversion),
-            ("Text Counting", self.textCounting),
-            ("Text Manipulation", self.textManipulation)
-        ]
-
-        for i, (text, command) in enumerate(menu_buttons):
-            ctk.CTkButton(self.txtUtilsContainer, text=text, height=50,
-                          command=command).grid(row=0, column=i, padx=PADX, pady=PADY, sticky="ew")
-
-        # Submenu container (hidden unless opened)
-        self.currentSubmenu = None
-
-    # -------------------- UNIVERSAL SUBMENU HANDLERS --------------------
     def _start_middle_scroll(self, event):
         self._middle_scroll_active = True
         self._middle_last_y = event.y_root
@@ -78,6 +73,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
     def _middle_scroll(self, event):
         if not self._middle_scroll_active:
             return
+
         dy = event.y_root - self._middle_last_y
         self._middle_last_y = event.y_root
         if dy == 0:
@@ -85,8 +81,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
 
         units = max(1, abs(int(dy / 2))) * 12
         direction = -1 if dy > 0 else 1
-        if self._parent_canvas.yview() != (0.0, 1.0):
-            self._parent_canvas.yview_scroll(direction * units, "units")
+        self._parent_canvas.yview_scroll(direction * units, "units")
 
     def _end_middle_scroll(self, event):
         self._middle_scroll_active = False
@@ -98,9 +93,9 @@ class TxtUtils(ctk.CTkScrollableFrame):
     def _event_inside_scrollable_area(self, event):
         widget = self.winfo_containing(event.x_root, event.y_root)
         while widget is not None:
-            if widget == self or widget == self._parent_canvas:
+            if widget in (self, self._parent_canvas):
                 return True
-            widget = getattr(widget, 'master', None)
+            widget = getattr(widget, "master", None)
         return False
 
     def _mouse_wheel_all(self, event):
@@ -111,11 +106,10 @@ class TxtUtils(ctk.CTkScrollableFrame):
             delta = int(event.delta / 120) if event.delta else 0
         elif sys.platform == "darwin":
             delta = int(event.delta)
+        elif hasattr(event, "num") and event.num in (4, 5):
+            delta = 1 if event.num == 4 else -1
         else:
-            if hasattr(event, "num") and event.num in (4, 5):
-                delta = 1 if event.num == 4 else -1
-            else:
-                delta = int(event.delta / 120) if event.delta else 0
+            delta = int(event.delta / 120) if event.delta else 0
 
         if delta == 0:
             return
@@ -128,36 +122,74 @@ class TxtUtils(ctk.CTkScrollableFrame):
             if self._parent_canvas.yview() != (0.0, 1.0):
                 self._parent_canvas.yview_scroll(scroll_units, "units")
 
-    def copyToClipboard(self):
-        if hasattr(self, "outputLabel"):
+    def _create_main_menu(self):
+        self.txtUtilsContainer = ctk.CTkFrame(self)
+        self.txtUtilsContainer.columnconfigure((0, 1, 2, 3), weight=1)
+        self.txtUtilsContainer.grid(row=0, column=0, columnspan=5, padx=PADX, pady=PADY, sticky="nsew")
+
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+
+        menu_buttons = [
+            ("Text Case Conversion", self.text_case_conversion),
+            ("Text Counting", self.text_counting),
+            ("Text Manipulation", self.text_manipulation),
+        ]
+
+        for index, (text, command) in enumerate(menu_buttons):
+            ctk.CTkButton(self.txtUtilsContainer, text=text, height=50, command=command).grid(
+                row=0, column=index, padx=PADX, pady=PADY, sticky="ew"
+            )
+
+    def _configure_grid(self, frame, columns=0, rows=0):
+        for col in range(columns):
+            frame.columnconfigure(col, weight=1)
+        for row in range(rows):
+            frame.rowconfigure(row, weight=1)
+
+    def _create_card(self, parent):
+        card = ctk.CTkFrame(parent, corner_radius=16)
+        card.pack(fill="both", expand=True)
+        return card
+
+    def _configure_output_copy(self, parent, row):
+        self.outputLabel = ctk.CTkLabel(parent, text="")
+        self.outputLabel.grid(row=row, column=0, columnspan=3, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkButton(parent, text="Copy", command=self.copy_to_clipboard).grid(
+            row=row, column=3, padx=PADX, pady=PADY, sticky="ew"
+        )
+
+    def copy_to_clipboard(self):
+        if hasattr(self, "outputText"):
+            text = self.outputText.get("1.0", "end").strip()
+        elif hasattr(self, "outputLabel"):
             text = self.outputLabel.cget("text")
-            clipboard.copy(text)
+        else:
+            return
+        clipboard.copy(text)
 
     def get_input_text(self):
-        """Handles Entry or Text widget input extraction."""
-        if isinstance(self.inputText, ctk.CTkEntry):
-            return self.inputText.get()
-        else:  # CTkTextbox
+        try:
             return self.inputText.get("1.0", "end").strip()
+        except Exception:
+            return self.inputText.get().strip()
 
-    def selectFile(self):
-        filename = filedialog.askopenfilename(filetypes=[
-            ("Text files", "*.txt"),
-            ("All files", "*.*")
-        ])
+    def select_file(self):
+        filename = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if not filename:
+            return
 
-        if filename:
-            with open(filename, 'r', encoding='utf-8') as txt:
-                content = txt.read()
-            if hasattr(self, "inputText"):
-                try:
-                    self.inputText.delete(0, ctk.END)
-                    self.inputText.insert(0, content)
-                except:
-                    self.inputText.delete("1.0", "end")
-                    self.inputText.insert("1.0", content)
+        with open(filename, "r", encoding="utf-8") as txt:
+            content = txt.read()
 
-    def openSubmenu(self):
+        try:
+            self.inputText.delete(0, ctk.END)
+            self.inputText.insert(0, content)
+        except Exception:
+            self.inputText.delete("1.0", "end")
+            self.inputText.insert("1.0", content)
+
+    def open_submenu(self):
         self.txtUtilsContainer.grid_forget()
         if self.currentSubmenu:
             self.currentSubmenu.destroy()
@@ -168,94 +200,75 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.currentSubmenu.columnconfigure((0, 1, 2, 3), weight=1)
         return self.currentSubmenu
 
-    def closeSubmenu(self):
+    def close_submenu(self):
         if self.currentSubmenu:
             self.currentSubmenu.destroy()
             self.currentSubmenu = None
         self.txtUtilsContainer.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-    # -------------------- TEXT CASE CONVERSION --------------------
-    def textCaseConversion(self):
-        frame = self.openSubmenu()
+    def text_case_conversion(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=4, rows=10)
 
         main = ctk.CTkFrame(frame, fg_color="transparent")
         main.pack(fill="both", expand=True, padx=20, pady=20)
+        card = self._create_card(main)
 
-        card = ctk.CTkFrame(
-            main,
-            corner_radius=16
+        ctk.CTkButton(card, text="Back", command=self.close_submenu).grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
 
-        card.pack(fill="both", expand=True)
-
-        for col in range(4):
-            frame.columnconfigure(col, weight=1)
-        for row in range(10):
-            frame.rowconfigure(row, weight=1)
-
-        ctk.CTkButton(card, text="Back", command=self.closeSubmenu)\
-            .grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
-
-        # Input
-        ctk.CTkButton(card, text="Select File", command=self.selectFile)\
-            .grid(row=1, column=0, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
+            row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
+        )
         ctk.CTkLabel(card, text="or").grid(row=1, column=1, padx=5, pady=PADY)
         self.inputText = ctk.CTkEntry(card, placeholder_text="Enter text here...")
         self.inputText.grid(row=1, column=2, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
 
-        # Conversion buttons
         conversions = [
             ("UPPERCASE", lambda t: t.upper()),
             ("lowercase", lambda t: t.lower()),
             ("Title Case", lambda t: t.title()),
-            ("camelCase", self.toCamel),
+            ("camelCase", self.to_camel_case),
             ("snake_case", lambda t: "_".join(t.split()).lower()),
             ("kebab-case", lambda t: "-".join(t.split()).lower()),
             ("PascalCase", lambda t: "".join(w.capitalize() for w in t.split())),
             ("flatcase", lambda t: "".join(t.split()).lower()),
-            ("CONSTANT_CASE", lambda t: "_".join(t.split()).upper())
+            ("CONSTANT_CASE", lambda t: "_".join(t.split()).upper()),
         ]
 
-        for i, (label, func) in enumerate(conversions):
+        for index, (label, func) in enumerate(conversions):
             ctk.CTkButton(
-                card, text=label,
-                command=lambda f=func: self.showOutput(f(self.get_input_text()))
-            ).grid(row=2 + i // 3, column=i % 3, padx=PADX, pady=PADY, sticky="ew")
+                card,
+                text=label,
+                command=lambda f=func: self.show_output(f(self.get_input_text())),
+            ).grid(row=2 + index // 3, column=index % 3, padx=PADX, pady=PADY, sticky="ew")
 
-        # Output
-        self.outputLabel = ctk.CTkLabel(card, text="")
-        self.outputLabel.grid(row=5, column=0, columnspan=3, padx=PADX, pady=PADY, sticky="ew")
-        ctk.CTkButton(card, text="Copy", command=self.copyToClipboard)\
-            .grid(row=5, column=3, padx=PADX, pady=PADY, sticky="ew")
+        self._configure_output_copy(card, row=5)
 
-    def toCamel(self, text):
+    def to_camel_case(self, text):
         words = text.split()
+        if not words:
+            return ""
         return words[0].lower() + "".join(w.capitalize() for w in words[1:])
 
-    def showOutput(self, text):
+    def show_output(self, text):
         self.outputLabel.configure(text=text)
 
-    # -------------------- TEXT COUNTING --------------------
-    def textCounting(self):
-        frame = self.openSubmenu()
-        for col in range(4):
-            frame.columnconfigure(col, weight=1)
-        for row in range(10):
-            frame.rowconfigure(row, weight=1)
+    def text_counting(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=4, rows=10)
 
         main = ctk.CTkFrame(frame, fg_color="transparent")
         main.pack(fill="both", expand=True, padx=20, pady=PADY)
+        card = self._create_card(main)
 
-        card = ctk.CTkFrame(
-            main,
-            corner_radius=16
+        ctk.CTkButton(card, text="Back", command=self.close_submenu).grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
-        card.pack(fill="both", expand=True)
-
-        ctk.CTkButton(card, text="Back", command=self.closeSubmenu)\
-            .grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
-        ctk.CTkButton(card, text="Select File", command=self.selectFile)\
-            .grid(row=1, column=0, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
+            row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
+        )
         ctk.CTkLabel(card, text="or").grid(row=1, column=1, padx=5, pady=PADY)
         self.inputText = ctk.CTkTextbox(card)
         self.inputText.grid(row=1, column=2, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
@@ -263,44 +276,37 @@ class TxtUtils(ctk.CTkScrollableFrame):
         counters = [
             ("Count Characters", lambda t: len(t)),
             ("Count Words", lambda t: len(t.split())),
-            ("Count Lines", lambda t: len(t.splitlines()))
+            ("Count Lines", lambda t: len(t.splitlines())),
         ]
 
-        for i, (label, func) in enumerate(counters):
+        for index, (label, func) in enumerate(counters):
             ctk.CTkButton(
-                card, text=label,
-                command=lambda f=func: self.showOutput(f(self.get_input_text()))
-            ).grid(row=2, column=i, padx=PADX, pady=PADY, sticky="ew")
+                card,
+                text=label,
+                command=lambda f=func: self.show_output(f(self.get_input_text())),
+            ).grid(row=2, column=index, padx=PADX, pady=PADY, sticky="ew")
 
-        self.outputLabel = ctk.CTkLabel(card, text="")
-        self.outputLabel.grid(row=3, column=0, columnspan=3, padx=PADX, pady=PADY, sticky="ew")
-        ctk.CTkButton(card, text="Copy", command=self.copyToClipboard)\
-            .grid(row=3, column=3, padx=PADX, pady=PADY, sticky="ew")
+        self._configure_output_copy(card, row=3)
 
-    # -------------------- TEXT MANIPULATION --------------------
-    def textManipulation(self):
-        frame = self.openSubmenu()
-        for col in range(2):
-            frame.columnconfigure(col, weight=1)
-        frame.rowconfigure(7, weight=1)
+    def text_manipulation(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
 
-        ctk.CTkButton(frame, text="Back", command=self.closeSubmenu)\
-            .grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+        ctk.CTkButton(frame, text="Back", command=self.close_submenu).grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky="w"
+        )
 
-        # Input
         ctk.CTkLabel(frame, text="Input Text:").grid(row=1, column=0, sticky="w")
-        # CTkTextbox does not support `placeholder_text`; remove unsupported arg
         self.inputText = ctk.CTkTextbox(frame, height=150)
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
-        # Operation
         ctk.CTkLabel(frame, text="Choose Operation:").grid(row=3, column=0, sticky="w")
-        self.operationChoice = ctk.CTkOptionMenu(frame,
-            values=["Find & Replace", "Remove Whitespace", "Extract Pattern"]
+        self.operation_choice = ctk.CTkOptionMenu(
+            frame,
+            values=["Find & Replace", "Remove Whitespace", "Extract Pattern"],
         )
-        self.operationChoice.grid(row=4, column=0, padx=PADX, pady=PADY, sticky="ew")
+        self.operation_choice.grid(row=4, column=0, padx=PADX, pady=PADY, sticky="ew")
 
-        # Pattern frame
         self.patternFrame = ctk.CTkFrame(frame)
         self.patternFrame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
 
@@ -309,74 +315,98 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.regexEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Regex")
         self.regexExplanation = ctk.CTkLabel(self.patternFrame, text="Regex example: \\S+@\\S+")
 
-        def updateFields(choice):
-            for w in self.patternFrame.winfo_children():
-                w.grid_forget()
-            if choice == "Find & Replace":
-                self.findEntry.grid(row=0, column=0, padx=PADX, pady=PADY)
-                self.replaceEntry.grid(row=0, column=1, padx=PADX, pady=PADY)
-            elif choice == "Extract Pattern":
-                self.regexEntry.grid(row=0, column=0, padx=PADX, pady=PADY)
-                self.regexExplanation.grid(row=1, column=0, padx=PADX, pady=PADY)
+        self.operation_handlers = {
+            "Find & Replace": self._find_and_replace,
+            "Remove Whitespace": self._remove_whitespace,
+            "Extract Pattern": self._extract_pattern,
+        }
 
-        self.operationChoice.configure(command=updateFields)
-        updateFields("Find & Replace")
+        self.operation_choice.configure(command=self._update_pattern_fields)
+        self._update_pattern_fields("Find & Replace")
 
-        # Output
         ctk.CTkLabel(frame, text="Output:").grid(row=6, column=0, sticky="w")
         self.outputText = ctk.CTkTextbox(frame, height=150)
         self.outputText.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
-        ctk.CTkButton(frame, text="Copy Output",
-                      command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()))\
-            .grid(row=7, column=1, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkButton(
+            frame,
+            text="Copy Output",
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
+        ).grid(row=7, column=1, padx=PADX, pady=PADY, sticky="ew")
 
-        def process():
-            text = self.inputText.get("1.0", "end").strip()
-            op = self.operationChoice.get()
+        ctk.CTkButton(frame, text="Run", command=self._process_text_operation).grid(
+            row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
+        )
 
-            if op == "Find & Replace":
-                result = text.replace(self.findEntry.get(), self.replaceEntry.get())
-            elif op == "Remove Whitespace":
-                result = "".join(text.split())
-            else:
-                matches = re.findall(self.regexEntry.get(), text)
-                result = "\n".join(matches) if matches else "No matches found."
+    def _update_pattern_fields(self, choice):
+        for widget in self.patternFrame.winfo_children():
+            widget.grid_forget()
+        if choice == "Find & Replace":
+            self.findEntry.grid(row=0, column=0, padx=PADX, pady=PADY)
+            self.replaceEntry.grid(row=0, column=1, padx=PADX, pady=PADY)
+        elif choice == "Extract Pattern":
+            self.regexEntry.grid(row=0, column=0, padx=PADX, pady=PADY)
+            self.regexExplanation.grid(row=1, column=0, padx=PADX, pady=PADY)
 
-            self.outputText.delete("1.0", "end")
-            self.outputText.insert("1.0", result)
+    def _find_and_replace(self, text):
+        return text.replace(self.findEntry.get(), self.replaceEntry.get())
 
-        ctk.CTkButton(frame, text="Run", command=process)\
-            .grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")    
-            
+    def _remove_whitespace(self, text):
+        return "".join(text.split())
+
+    def _extract_pattern(self, text):
+        matches = re.findall(self.regexEntry.get(), text)
+        return "\n".join(matches) if matches else "No matches found."
+
+    def _process_text_operation(self):
+        text = self.inputText.get("1.0", "end").strip()
+        handler = self.operation_handlers.get(self.operation_choice.get())
+        if handler is None:
+            return
+        result = handler(text)
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", result)
+
+
 class Forgedy(ctk.CTk):
-    def __init__(self): 
+    def __init__(self):
         super().__init__()
         self.title("Forgedy")
         self.geometry("800x600")
         self.columnconfigure((0, 1, 2, 3), weight=1)
         self.rowconfigure(2, weight=1)
-        
-        self.imgUtils = ctk.CTkButton(self, text="Image Utilities", width=100, height=50)
-        self.imgUtils.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="ew")
-        
-        self.txtUtilsButton = ctk.CTkButton(self, text="Text Utilities", width=100, height=50, command=self.openTxtUtils)
-        self.txtUtilsButton.grid(row=0, column=1, padx=PADX, pady=PADY, sticky="ew")
-        
-        self.audioUtils = ctk.CTkButton(self, text="Audio Utilities", width=100, height=50)
-        self.audioUtils.grid(row=0, column=2, padx=PADX, pady=PADY, sticky="ew")
-        
-        self.videoUtils = ctk.CTkButton(self, text="Video Utilities", width=100, height=50)
-        self.videoUtils.grid(row=0, column=3, padx=PADX, pady=PADY, sticky="ew")
-        
-        self.seperatorLineMainScreen = seperatorLine(self)
-        self.seperatorLineMainScreen.grid(row=1, column=0, columnspan=5, padx=PADX, pady=PADY, sticky="ew")
+        self.txt_utils_frame = None
 
-    def openTxtUtils(self):
-        txt_utils = TxtUtils(self)
-        txt_utils.grid(row=2, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+        self._create_top_buttons()
+        self.separator = SeparatorLine(self)
+        self.separator.grid(row=1, column=0, columnspan=4, padx=PADX, pady=PADY, sticky="ew")
 
-        
+    def _create_top_buttons(self):
+        buttons = [
+            ("Image Utilities", None),
+            ("Text Utilities", self.open_txt_utils),
+            ("Audio Utilities", None),
+            ("Video Utilities", None),
+        ]
+
+        for index, (text, command) in enumerate(buttons):
+            button = ctk.CTkButton(
+                self,
+                text=text,
+                width=100,
+                height=50,
+                command=command if command else lambda: None,
+            )
+            button.grid(row=0, column=index, padx=PADX, pady=PADY, sticky="ew")
+
+    def open_txt_utils(self):
+        if self.txt_utils_frame:
+            self.txt_utils_frame.destroy()
+
+        self.txt_utils_frame = TxtUtils(self)
+        self.txt_utils_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+
+
 if __name__ == "__main__":
     app = Forgedy()
     app.iconbitmap("icon-no-bg.ico")
