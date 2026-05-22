@@ -1,6 +1,8 @@
-__pycache__/
+__pycache__
 *.pyc
 *.pyo
 .vscode/settings.json
+.vscode
 icon.png
-
+mass-gen.py
+.gitignore

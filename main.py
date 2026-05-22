@@ -5,11 +5,8 @@ import re
 import clipboard
 import ctypes
 
-myappid = 'mycompany.myproduct.subproduct.version' # arbitrary string
+myappid = 'mycompany.myproduct.subproduct.version'
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-
-
-
 
 PADX = 12
 PADY = 8
@@ -226,7 +223,8 @@ class TxtUtils(ctk.CTkScrollableFrame):
 
         # Input
         ctk.CTkLabel(frame, text="Input Text:").grid(row=1, column=0, sticky="w")
-        self.inputText = ctk.CTkTextbox(frame, height=150, placeholder_text="Enter text here...")
+        # CTkTextbox does not support `placeholder_text`; remove unsupported arg
+        self.inputText = ctk.CTkTextbox(frame, height=150)
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
         # Operation

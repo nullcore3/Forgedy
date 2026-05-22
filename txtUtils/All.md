@@ -11,17 +11,16 @@
 7. [Text Generation](#text-generation)
 8. [Text Validation](#text-validation)
 9. [Text Summarization](#text-summarization)
-10.[Text Translation](#text-translation)
-11.[Text Search](#text-search)
-12.[Text Parsing](#text-parsing)
-13.[Text Compression](#text-compression)
-14.[Text Sorting](#text-sorting)
-15.[Text Merging](#text-merging)
-16.[Text Escaping](#text-escaping)
-17.[Text Metrics](#text-metrics)
-18.[Text Noise Removal](#text-noise-removal)
-19.[Text Versioning](#text-versioning)
-20.[Text Styling](#text-styling)
+10. [Text Translation](#text-translation)
+11. [Text Search](#text-search)
+12. [Text Parsing](#text-parsing)
+13. [Text Compression](#text-compression)
+14. [Text Sorting](#text-sorting)
+15. [Text Merging](#text-merging)
+16. [Text Escaping](#text-escaping)
+17. [Text Metrics](#text-metrics)
+18. [Text Noise Removal](#text-noise-removal)
+19. [Text Styling](#text-styling)
 
 ---
 
@@ -166,14 +165,6 @@
 1. Remove HTML tags from text.
 2. Remove comments from text.
 3. Filter out stopwords.
-
----
-
-## Text Versioning
-
-1. Track changes in text files.
-2. Compare different versions of text.
-3. Generate version history.
 
 ---
 
