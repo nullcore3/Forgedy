@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import filedialog
 import random
 import re
+import sys
 import clipboard
 import ctypes
 
@@ -30,8 +31,18 @@ class TxtUtils(ctk.CTkScrollableFrame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
-        self._parent_canvas.bind("<ButtonPress-2>", self._start_middle_scroll)
-        self._parent_canvas.bind("<B2-Motion>", self._middle_scroll)
+        self.bind_all("<ButtonPress-2>", self._start_middle_scroll, add="+")
+        self.bind_all("<B2-Motion>", self._middle_scroll, add="+")
+        self.bind_all("<ButtonRelease-2>", self._end_middle_scroll, add="+")
+        self.bind_all("<Button-4>", self._mouse_wheel_all, add="+")
+        self.bind_all("<Button-5>", self._mouse_wheel_all, add="+")
+        self._parent_canvas.bind("<ButtonPress-2>", self._start_middle_scroll, add="+")
+        self._parent_canvas.bind("<B2-Motion>", self._middle_scroll, add="+")
+        self._parent_canvas.bind("<ButtonRelease-2>", self._end_middle_scroll, add="+")
+        self._parent_canvas.bind("<Button-4>", self._mouse_wheel_all, add="+")
+        self._parent_canvas.bind("<Button-5>", self._mouse_wheel_all, add="+")
+        self._middle_scroll_active = False
+        self._middle_last_y = None
 
         # --- MAIN MENU ---
         self.txtUtilsContainer = ctk.CTkFrame(self)
@@ -57,10 +68,65 @@ class TxtUtils(ctk.CTkScrollableFrame):
 
     # -------------------- UNIVERSAL SUBMENU HANDLERS --------------------
     def _start_middle_scroll(self, event):
-        self._parent_canvas.scan_mark(event.x, event.y)
+        self._middle_scroll_active = True
+        self._middle_last_y = event.y_root
+        try:
+            self._parent_canvas.grab_set_global()
+        except Exception:
+            pass
 
     def _middle_scroll(self, event):
-        self._parent_canvas.scan_dragto(event.x, event.y, gain=1)
+        if not self._middle_scroll_active:
+            return
+        dy = event.y_root - self._middle_last_y
+        self._middle_last_y = event.y_root
+        if dy == 0:
+            return
+
+        units = max(1, abs(int(dy / 2))) * 12
+        direction = -1 if dy > 0 else 1
+        if self._parent_canvas.yview() != (0.0, 1.0):
+            self._parent_canvas.yview_scroll(direction * units, "units")
+
+    def _end_middle_scroll(self, event):
+        self._middle_scroll_active = False
+        try:
+            self._parent_canvas.grab_release()
+        except Exception:
+            pass
+
+    def _event_inside_scrollable_area(self, event):
+        widget = self.winfo_containing(event.x_root, event.y_root)
+        while widget is not None:
+            if widget == self or widget == self._parent_canvas:
+                return True
+            widget = getattr(widget, 'master', None)
+        return False
+
+    def _mouse_wheel_all(self, event):
+        if not self._event_inside_scrollable_area(event):
+            return
+
+        if sys.platform.startswith("win"):
+            delta = int(event.delta / 120) if event.delta else 0
+        elif sys.platform == "darwin":
+            delta = int(event.delta)
+        else:
+            if hasattr(event, "num") and event.num in (4, 5):
+                delta = 1 if event.num == 4 else -1
+            else:
+                delta = int(event.delta / 120) if event.delta else 0
+
+        if delta == 0:
+            return
+
+        scroll_units = -delta * 16
+        if self._shift_pressed:
+            if self._parent_canvas.xview() != (0.0, 1.0):
+                self._parent_canvas.xview_scroll(scroll_units, "units")
+        else:
+            if self._parent_canvas.yview() != (0.0, 1.0):
+                self._parent_canvas.yview_scroll(scroll_units, "units")
 
     def copyToClipboard(self):
         if hasattr(self, "outputLabel"):
