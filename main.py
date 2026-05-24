@@ -336,7 +336,14 @@ class TxtUtils(ctk.CTkScrollableFrame):
         frame = self.open_submenu()
         self._configure_grid(frame, columns=2, rows=8)
 
-        ctk.CTkButton(frame, text="Back", command=self.close_submenu, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(
             row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
 
@@ -344,12 +351,25 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.inputText = ctk.CTkTextbox(frame, height=150, font=INPUT_FONT)
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
-        ctk.CTkButton(frame, text="Select File", command=self.select_file, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
-            row=3, column=0, padx=PADX, pady=PADY, sticky="ew"
-        )
-        ctk.CTkButton(frame, text="Save Output", command=self.save_output_text, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
-            row=3, column=1, padx=PADX, pady=PADY, sticky="ew"
-        )
+        file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        file_buttons.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0)
+        ctk.CTkButton(
+            file_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0)
 
         ctk.CTkLabel(frame, text="Choose Operation:", font=LABEL_FONT).grid(row=4, column=0, sticky="w")
         self.operation_choice = ctk.CTkOptionMenu(
