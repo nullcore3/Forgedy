@@ -336,7 +336,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkButton(frame, text="Select File", command=self.select_file).grid(
             row=3, column=0, padx=PADX, pady=PADY, sticky="ew"
         )
-        ctk.CTkButton(frame, text="Save", command=self.save_output_text).grid(
+        ctk.CTkButton(frame, text="Save Output", command=self.save_output_text).grid(
             row=3, column=1, padx=PADX, pady=PADY, sticky="ew"
         )
 
@@ -367,15 +367,16 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkLabel(frame, text="Output:").grid(row=7, column=0, sticky="w")
         self.outputText = ctk.CTkTextbox(frame, height=150)
         self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
 
         ctk.CTkButton(
             frame,
             text="Copy Output",
             command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
-        ).grid(row=8, column=1, padx=PADX, pady=PADY, sticky="ew")
+        ).grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
 
         ctk.CTkButton(frame, text="Run", command=self._process_text_operation).grid(
-            row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
+            row=10, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
         )
 
     def _update_pattern_fields(self, choice):
@@ -404,8 +405,10 @@ class TxtUtils(ctk.CTkScrollableFrame):
         if handler is None:
             return
         result = handler(text)
+        self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", result)
+        self.outputText.configure(state="disabled")
 
 
 class Forgedy(ctk.CTk):
