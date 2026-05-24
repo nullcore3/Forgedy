@@ -174,6 +174,33 @@ class TxtUtils(ctk.CTkScrollableFrame):
         except Exception:
             return self.inputText.get().strip()
 
+    def get_input_text_raw(self):
+        if not hasattr(self, "inputText"):
+            return ""
+        try:
+            return self.inputText.get("1.0", "end")
+        except Exception:
+            return self.inputText.get()
+
+    def save_text(self, text):
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if not filename:
+            return
+
+        with open(filename, "w", encoding="utf-8") as txt_file:
+            txt_file.write(text)
+
+    def save_input_text(self):
+        self.save_text(self.get_input_text_raw())
+
+    def save_output_text(self):
+        if not hasattr(self, "outputText"):
+            return
+        self.save_text(self.outputText.get("1.0", "end"))
+
     def select_file(self):
         filename = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
         if not filename:
@@ -221,9 +248,12 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
             row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
         )
-        ctk.CTkLabel(card, text="or").grid(row=1, column=1, padx=5, pady=PADY)
+        ctk.CTkButton(card, text="Save", command=self.save_input_text).grid(
+            row=1, column=1, padx=PADX, pady=PADY, sticky="ew"
+        )
+        ctk.CTkLabel(card, text="or").grid(row=1, column=2, padx=5, pady=PADY)
         self.inputText = ctk.CTkEntry(card, placeholder_text="Enter text here...")
-        self.inputText.grid(row=1, column=2, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        self.inputText.grid(row=1, column=3, padx=PADX, pady=PADY, sticky="ew")
 
         conversions = [
             ("UPPERCASE", lambda t: t.upper()),
@@ -269,9 +299,12 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
             row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
         )
-        ctk.CTkLabel(card, text="or").grid(row=1, column=1, padx=5, pady=PADY)
+        ctk.CTkButton(card, text="Save", command=self.save_input_text).grid(
+            row=1, column=1, padx=PADX, pady=PADY, sticky="ew"
+        )
+        ctk.CTkLabel(card, text="or").grid(row=1, column=2, padx=5, pady=PADY)
         self.inputText = ctk.CTkTextbox(card)
-        self.inputText.grid(row=1, column=2, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        self.inputText.grid(row=1, column=3, padx=PADX, pady=PADY, sticky="ew")
 
         counters = [
             ("Count Characters", lambda t: len(t)),
@@ -300,15 +333,22 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.inputText = ctk.CTkTextbox(frame, height=150)
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
-        ctk.CTkLabel(frame, text="Choose Operation:").grid(row=3, column=0, sticky="w")
+        ctk.CTkButton(frame, text="Select File", command=self.select_file).grid(
+            row=3, column=0, padx=PADX, pady=PADY, sticky="ew"
+        )
+        ctk.CTkButton(frame, text="Save", command=self.save_output_text).grid(
+            row=3, column=1, padx=PADX, pady=PADY, sticky="ew"
+        )
+
+        ctk.CTkLabel(frame, text="Choose Operation:").grid(row=4, column=0, sticky="w")
         self.operation_choice = ctk.CTkOptionMenu(
             frame,
             values=["Find & Replace", "Remove Whitespace", "Extract Pattern"],
         )
-        self.operation_choice.grid(row=4, column=0, padx=PADX, pady=PADY, sticky="ew")
+        self.operation_choice.grid(row=5, column=0, padx=PADX, pady=PADY, sticky="ew")
 
         self.patternFrame = ctk.CTkFrame(frame)
-        self.patternFrame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
+        self.patternFrame.grid(row=6, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
 
         self.findEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Find")
         self.replaceEntry = ctk.CTkEntry(self.patternFrame, placeholder_text="Replace")
@@ -324,18 +364,18 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.operation_choice.configure(command=self._update_pattern_fields)
         self._update_pattern_fields("Find & Replace")
 
-        ctk.CTkLabel(frame, text="Output:").grid(row=6, column=0, sticky="w")
+        ctk.CTkLabel(frame, text="Output:").grid(row=7, column=0, sticky="w")
         self.outputText = ctk.CTkTextbox(frame, height=150)
-        self.outputText.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
         ctk.CTkButton(
             frame,
             text="Copy Output",
             command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
-        ).grid(row=7, column=1, padx=PADX, pady=PADY, sticky="ew")
+        ).grid(row=8, column=1, padx=PADX, pady=PADY, sticky="ew")
 
         ctk.CTkButton(frame, text="Run", command=self._process_text_operation).grid(
-            row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
+            row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
         )
 
     def _update_pattern_fields(self, choice):
