@@ -12,6 +12,7 @@ ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 PADX = 12
 PADY = 8
 BTN_HEIGHT = 40
+BTN_WIDTH = 140
 CORNER = 12
 THEME_PATH = "themes/breeze.json"
 
@@ -155,7 +156,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
     def _configure_output_copy(self, parent, row):
         self.outputLabel = ctk.CTkLabel(parent, text="")
         self.outputLabel.grid(row=row, column=0, columnspan=3, padx=PADX, pady=PADY, sticky="ew")
-        ctk.CTkButton(parent, text="Copy", command=self.copy_to_clipboard).grid(
+        ctk.CTkButton(parent, text="Copy", command=self.copy_to_clipboard, height=BTN_HEIGHT).grid(
             row=row, column=3, padx=PADX, pady=PADY, sticky="ew"
         )
 
@@ -241,19 +242,19 @@ class TxtUtils(ctk.CTkScrollableFrame):
         main.pack(fill="both", expand=True, padx=20, pady=20)
         card = self._create_card(main)
 
-        ctk.CTkButton(card, text="Back", command=self.close_submenu).grid(
+        ctk.CTkButton(card, text="Back", command=self.close_submenu, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
             row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
 
-        ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
-            row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
+        ctk.CTkButton(card, text="Select File", command=self.select_file, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
+            row=1, column=0, padx=(PADX, 6), pady=(4, 4)
         )
-        ctk.CTkButton(card, text="Save", command=self.save_input_text).grid(
-            row=1, column=1, padx=PADX, pady=PADY, sticky="ew"
+        ctk.CTkButton(card, text="Save", command=self.save_input_text, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
+            row=1, column=1, padx=(6, 6), pady=(4, 4)
         )
-        ctk.CTkLabel(card, text="or").grid(row=1, column=2, padx=5, pady=PADY)
-        self.inputText = ctk.CTkEntry(card, placeholder_text="Enter text here...")
-        self.inputText.grid(row=1, column=3, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkLabel(card, text="or", font=("Arial", 16), anchor="center").grid(row=1, column=2, padx=(6, 6), pady=(4, 4), sticky="ns")
+        self.inputText = ctk.CTkEntry(card, placeholder_text="Enter text here...", height=BTN_HEIGHT)
+        self.inputText.grid(row=1, column=3, padx=(6, PADX), pady=(4, 4), sticky="ew")
 
         conversions = [
             ("UPPERCASE", lambda t: t.upper()),
@@ -271,6 +272,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ctk.CTkButton(
                 card,
                 text=label,
+                height=BTN_HEIGHT,
                 command=lambda f=func: self.show_output(f(self.get_input_text())),
             ).grid(row=2 + index // 3, column=index % 3, padx=PADX, pady=PADY, sticky="ew")
 
@@ -293,18 +295,18 @@ class TxtUtils(ctk.CTkScrollableFrame):
         main.pack(fill="both", expand=True, padx=20, pady=PADY)
         card = self._create_card(main)
 
-        ctk.CTkButton(card, text="Back", command=self.close_submenu).grid(
+        ctk.CTkButton(card, text="Back", command=self.close_submenu, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
             row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
-        ctk.CTkButton(card, text="Select File", command=self.select_file).grid(
-            row=1, column=0, padx=PADX, pady=PADY, sticky="ew"
+        ctk.CTkButton(card, text="Select File", command=self.select_file, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
+            row=1, column=0, padx=(PADX, 6), pady=(4, 4)
         )
-        ctk.CTkButton(card, text="Save", command=self.save_input_text).grid(
-            row=1, column=1, padx=PADX, pady=PADY, sticky="ew"
+        ctk.CTkButton(card, text="Save", command=self.save_input_text, width=BTN_WIDTH, height=BTN_HEIGHT).grid(
+            row=1, column=1, padx=(6, 6), pady=(4, 4)
         )
-        ctk.CTkLabel(card, text="or").grid(row=1, column=2, padx=5, pady=PADY)
-        self.inputText = ctk.CTkTextbox(card)
-        self.inputText.grid(row=1, column=3, padx=PADX, pady=PADY, sticky="ew")
+        ctk.CTkLabel(card, text="or", font=("Arial", 16), anchor="center").grid(row=1, column=2, padx=(6, 6), pady=(4, 4), sticky="ns")
+        self.inputText = ctk.CTkTextbox(card, height=BTN_HEIGHT)
+        self.inputText.grid(row=1, column=3, padx=(6, PADX), pady=(4, 4), sticky="ew")
 
         counters = [
             ("Count Characters", lambda t: len(t)),
@@ -316,6 +318,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ctk.CTkButton(
                 card,
                 text=label,
+                height=BTN_HEIGHT,
                 command=lambda f=func: self.show_output(f(self.get_input_text())),
             ).grid(row=2, column=index, padx=PADX, pady=PADY, sticky="ew")
 
@@ -325,7 +328,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         frame = self.open_submenu()
         self._configure_grid(frame, columns=2, rows=8)
 
-        ctk.CTkButton(frame, text="Back", command=self.close_submenu).grid(
+        ctk.CTkButton(frame, text="Back", command=self.close_submenu, height=BTN_HEIGHT).grid(
             row=0, column=0, padx=PADX, pady=PADY, sticky="w"
         )
 
@@ -333,10 +336,10 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.inputText = ctk.CTkTextbox(frame, height=150)
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
-        ctk.CTkButton(frame, text="Select File", command=self.select_file).grid(
+        ctk.CTkButton(frame, text="Select File", command=self.select_file, height=BTN_HEIGHT).grid(
             row=3, column=0, padx=PADX, pady=PADY, sticky="ew"
         )
-        ctk.CTkButton(frame, text="Save Output", command=self.save_output_text).grid(
+        ctk.CTkButton(frame, text="Save Output", command=self.save_output_text, height=BTN_HEIGHT).grid(
             row=3, column=1, padx=PADX, pady=PADY, sticky="ew"
         )
 
@@ -372,10 +375,11 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkButton(
             frame,
             text="Copy Output",
+            height=BTN_HEIGHT,
             command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
         ).grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
 
-        ctk.CTkButton(frame, text="Run", command=self._process_text_operation).grid(
+        ctk.CTkButton(frame, text="Run", command=self._process_text_operation, height=BTN_HEIGHT).grid(
             row=10, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
         )
 
