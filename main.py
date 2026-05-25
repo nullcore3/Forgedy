@@ -2,6 +2,7 @@ import ctypes
 import difflib
 import html
 import json
+import math
 import re
 import secrets
 import string
@@ -169,6 +170,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Merging", self.textMerging),
             ("Text Noise Removal", self.textNoiseRemoval),
             ("Text Escaping", self.textEscaping),
+            ("Text Metrics", self.textMetrics),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1619,6 +1621,162 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT METRICS --------------------
+    def textMetrics(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Text A:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        ctk.CTkLabel(frame, text="Text B:", font=LABEL_FONT).grid(row=1, column=1, sticky="w")
+        self.metricsTextOne = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
+        self.metricsTextTwo = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
+        self.metricsTextOne.grid(row=2, column=0, padx=PADX, pady=PADY, sticky="nsew")
+        self.metricsTextTwo.grid(row=2, column=1, padx=PADX, pady=PADY, sticky="nsew")
+
+        file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        file_buttons.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        file_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select Text A",
+            command=lambda: self._select_metrics_file(self.metricsTextOne),
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            file_buttons,
+            text="Select Text B",
+            command=lambda: self._select_metrics_file(self.metricsTextTwo),
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        metric_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        metric_controls.grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        metric_controls.columnconfigure(0, weight=1)
+
+        self.metric_choice = ctk.CTkOptionMenu(
+            metric_controls,
+            values=["All Metrics", "Levenshtein Similarity", "Jaccard Similarity", "Text Entropy"],
+            font=BUTTON_FONT,
+        )
+        self.metric_choice.grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            metric_controls,
+            text="Calculate",
+            command=self._process_text_metrics,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Metrics Report:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=190, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Report",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Report",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _select_metrics_file(self, text_box):
+        filename = filedialog.askopenfilename(filetypes=TEXT_FILETYPES)
+        if not filename:
+            return
+
+        with open(filename, "r", encoding="utf-8") as text_file:
+            content = text_file.read()
+
+        text_box.delete("1.0", "end")
+        text_box.insert("1.0", content)
+
+    def _process_text_metrics(self):
+        text_one = self.metricsTextOne.get("1.0", "end-1c")
+        text_two = self.metricsTextTwo.get("1.0", "end-1c")
+        choice = self.metric_choice.get()
+        report_lines = []
+
+        if choice in ("All Metrics", "Levenshtein Similarity"):
+            distance, similarity = self._levenshtein_similarity(text_one, text_two)
+            report_lines.append(f"Levenshtein distance: {distance}")
+            report_lines.append(f"Levenshtein similarity: {similarity:.2%}")
+
+        if choice in ("All Metrics", "Jaccard Similarity"):
+            similarity = self._jaccard_similarity(text_one, text_two)
+            report_lines.append(f"Jaccard similarity: {similarity:.2%}")
+
+        if choice in ("All Metrics", "Text Entropy"):
+            report_lines.append(f"Text A entropy: {self._text_entropy(text_one):.4f} bits/character")
+            report_lines.append(f"Text B entropy: {self._text_entropy(text_two):.4f} bits/character")
+
+        self._show_metrics_report("\n".join(report_lines))
+
+    def _levenshtein_similarity(self, first_text, second_text):
+        distance = self._levenshtein_distance(first_text, second_text)
+        longest_length = max(len(first_text), len(second_text))
+        similarity = 1.0 if longest_length == 0 else 1 - (distance / longest_length)
+        return distance, similarity
+
+    def _levenshtein_distance(self, first_text, second_text):
+        if len(first_text) < len(second_text):
+            first_text, second_text = second_text, first_text
+
+        previous_row = list(range(len(second_text) + 1))
+        for first_index, first_char in enumerate(first_text, start=1):
+            current_row = [first_index]
+            for second_index, second_char in enumerate(second_text, start=1):
+                insert_cost = current_row[second_index - 1] + 1
+                delete_cost = previous_row[second_index] + 1
+                replace_cost = previous_row[second_index - 1] + (first_char != second_char)
+                current_row.append(min(insert_cost, delete_cost, replace_cost))
+            previous_row = current_row
+        return previous_row[-1]
+
+    def _jaccard_similarity(self, first_text, second_text):
+        first_words = set(re.findall(r"\b\w+\b", first_text.lower()))
+        second_words = set(re.findall(r"\b\w+\b", second_text.lower()))
+        if not first_words and not second_words:
+            return 1.0
+        return len(first_words & second_words) / len(first_words | second_words)
+
+    def _text_entropy(self, text):
+        if not text:
+            return 0.0
+
+        # Shannon entropy measures how unpredictable the character distribution is.
+        return -sum((text.count(char) / len(text)) * math.log2(text.count(char) / len(text)) for char in set(text))
+
+    def _show_metrics_report(self, report):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", report)
         self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
