@@ -1,6 +1,8 @@
 import ctypes
 import difflib
 import re
+import secrets
+import string
 import sys
 import textwrap
 from tkinter import filedialog
@@ -153,6 +155,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Manipulation", self.text_manipulation),
             ("Text Formating", self.textFormating),
             ("Text Comparison", self.textComparison),
+            ("Text Generation", self.textGeneration),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -723,6 +726,160 @@ class TxtUtils(ctk.CTkScrollableFrame):
                 self.outputText.tag_add("modified_line", f"{line_number}.0", f"{line_number}.end")
 
         self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT GENERATION --------------------
+    def textGeneration(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Generation Type:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.generation_choice = ctk.CTkOptionMenu(
+            frame,
+            values=["Random String", "Password", "Lorem Ipsum", "Template / Pattern"],
+            font=BUTTON_FONT,
+        )
+        self.generation_choice.grid(row=2, column=0, padx=PADX, pady=PADY, sticky="ew")
+
+        self.generationOptionsFrame = ctk.CTkFrame(frame)
+        self.generationOptionsFrame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
+
+        self.generationLengthEntry = ctk.CTkEntry(self.generationOptionsFrame, placeholder_text="Length", width=90, font=INPUT_FONT)
+        self.generationCountEntry = ctk.CTkEntry(self.generationOptionsFrame, placeholder_text="Count", width=90, font=INPUT_FONT)
+        self.generationTemplateEntry = ctk.CTkEntry(
+            self.generationOptionsFrame,
+            placeholder_text="Template: user-{number}-{word}",
+            font=INPUT_FONT,
+        )
+        self.generationLengthLabel = ctk.CTkLabel(self.generationOptionsFrame, text="characters", font=LABEL_FONT)
+        self.generationCountLabel = ctk.CTkLabel(self.generationOptionsFrame, text="items", font=LABEL_FONT)
+        self.generationTemplateLabel = ctk.CTkLabel(
+            self.generationOptionsFrame,
+            text="tokens: {word}, {number}, {letter}, {char}",
+            font=LABEL_FONT,
+        )
+        self.generationLengthEntry.insert(0, "16")
+        self.generationCountEntry.insert(0, "5")
+        self.generationTemplateEntry.insert(0, "item-{number}-{word}")
+
+        self.generation_choice.configure(command=self._update_generation_fields)
+        self._update_generation_fields("Random String")
+
+        ctk.CTkButton(
+            frame,
+            text="Generate",
+            command=self._process_text_generation,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _update_generation_fields(self, choice):
+        for widget in self.generationOptionsFrame.winfo_children():
+            widget.grid_forget()
+
+        self.generationCountEntry.grid(row=0, column=0, padx=(PADX, 6), pady=PADY, sticky="w")
+        self.generationCountLabel.grid(row=0, column=1, padx=(0, PADX), pady=PADY, sticky="w")
+
+        if choice in ("Random String", "Password"):
+            self.generationLengthEntry.grid(row=0, column=2, padx=(0, 6), pady=PADY, sticky="w")
+            self.generationLengthLabel.grid(row=0, column=3, padx=(0, PADX), pady=PADY, sticky="w")
+        elif choice == "Lorem Ipsum":
+            self.generationCountLabel.configure(text="paragraphs")
+        else:
+            self.generationCountLabel.configure(text="items")
+            self.generationTemplateEntry.grid(row=1, column=0, columnspan=4, padx=PADX, pady=(0, 4), sticky="ew")
+            self.generationTemplateLabel.grid(row=2, column=0, columnspan=4, padx=PADX, pady=(0, PADY), sticky="w")
+
+        if choice != "Lorem Ipsum":
+            self.generationCountLabel.configure(text="items")
+
+    def _process_text_generation(self):
+        choice = self.generation_choice.get()
+        count = self._get_positive_int(self.generationCountEntry.get(), 5)
+        length = self._get_positive_int(self.generationLengthEntry.get(), 16)
+
+        if choice == "Password":
+            result = self._generate_passwords(length, count)
+        elif choice == "Lorem Ipsum":
+            result = self._generate_lorem_ipsum(count)
+        elif choice == "Template / Pattern":
+            result = self._generate_from_template(self.generationTemplateEntry.get(), count)
+        else:
+            result = self._generate_random_strings(length, count)
+
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", result)
+        self.outputText.configure(state="disabled")
+
+    def _generate_random_strings(self, length, count):
+        alphabet = string.ascii_letters + string.digits
+        return "\n".join("".join(secrets.choice(alphabet) for _ in range(length)) for _ in range(count))
+
+    def _generate_passwords(self, length, count):
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        return "\n".join("".join(secrets.choice(alphabet) for _ in range(length)) for _ in range(count))
+
+    def _generate_lorem_ipsum(self, paragraph_count):
+        words = (
+            "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt "
+            "ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation"
+        ).split()
+        paragraphs = []
+        for _ in range(paragraph_count):
+            paragraph_words = [secrets.choice(words) for _ in range(70)]
+            paragraph = " ".join(paragraph_words).capitalize() + "."
+            paragraphs.append(textwrap.fill(paragraph, width=80))
+        return "\n\n".join(paragraphs)
+
+    def _generate_from_template(self, template, count):
+        template = template.strip() or "item-{number}-{word}"
+        return "\n".join(self._fill_template(template, index) for index in range(1, count + 1))
+
+    def _fill_template(self, template, number):
+        words = ["alpha", "bravo", "charlie", "delta", "echo", "forge", "spark", "vector"]
+        replacements = {
+            "{word}": secrets.choice(words),
+            "{number}": str(number),
+            "{letter}": secrets.choice(string.ascii_letters),
+            "{char}": secrets.choice(string.ascii_letters + string.digits),
+        }
+
+        for token, value in replacements.items():
+            template = template.replace(token, value)
+        return template
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
