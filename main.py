@@ -157,6 +157,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Comparison", self.textComparison),
             ("Text Generation", self.textGeneration),
             ("Text Validation", self.textValidation),
+            ("Text Search", self.textSearch),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1007,6 +1008,147 @@ class TxtUtils(ctk.CTkScrollableFrame):
             elif line.startswith("INVALID:"):
                 self.outputText.tag_add("invalid_line", f"{line_number}.0", f"{line_number}.end")
 
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT SEARCH --------------------
+    def textSearch(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Source Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=140, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        search_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        search_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        search_controls.columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            search_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.searchEntry = ctk.CTkEntry(search_controls, placeholder_text="Search keyword or regex", font=INPUT_FONT)
+        self.searchEntry.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.searchMode = ctk.CTkOptionMenu(search_controls, values=["Keyword", "Regex"], font=BUTTON_FONT)
+        self.searchMode.grid(row=0, column=2, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Search",
+            command=self._process_text_search,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Highlighted Source:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.searchPreviewText = ctk.CTkTextbox(frame, height=140, font=FORMAT_TEXT_FONT, wrap="none")
+        self.searchPreviewText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.searchPreviewText.configure(state="disabled")
+
+        ctk.CTkLabel(frame, text="Search Results:", font=LABEL_FONT).grid(row=7, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=130, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Results",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Results",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_search(self):
+        text = self.inputText.get("1.0", "end-1c")
+        query = self.searchEntry.get()
+        use_regex = self.searchMode.get() == "Regex"
+
+        if not query:
+            self._show_search_results(text, [], "Enter a search keyword or regex.")
+            return
+
+        try:
+            matches = self._find_text_matches(text, query, use_regex)
+        except re.error as error:
+            self._show_search_results(text, [], f"Invalid regex: {error}")
+            return
+
+        report = self._build_search_report(text, matches)
+        self._show_search_results(text, matches, report)
+
+    def _find_text_matches(self, text, query, use_regex):
+        flags = re.MULTILINE
+        pattern = query if use_regex else re.escape(query)
+        return list(re.finditer(pattern, text, flags))
+
+    def _build_search_report(self, text, matches):
+        if not matches:
+            return "No matches found."
+
+        lines = text.splitlines(keepends=True)
+        line_starts = []
+        position = 0
+        for line in lines:
+            line_starts.append(position)
+            position += len(line)
+
+        report_lines = [f"Found {len(matches)} match(es).", ""]
+        for match in matches:
+            line_number = self._line_number_for_index(line_starts, match.start())
+            line_text = lines[line_number - 1].strip()
+            report_lines.append(f"Line {line_number}, columns {match.start() - line_starts[line_number - 1] + 1}-{match.end() - line_starts[line_number - 1]}: {match.group(0)}")
+            report_lines.append(f"    {line_text}")
+
+        return "\n".join(report_lines)
+
+    def _line_number_for_index(self, line_starts, index):
+        line_number = 1
+        for current_line, start in enumerate(line_starts, start=1):
+            if start > index:
+                break
+            line_number = current_line
+        return line_number
+
+    def _show_search_results(self, text, matches, report):
+        self.searchPreviewText.configure(state="normal")
+        self.searchPreviewText.delete("1.0", "end")
+        self.searchPreviewText.insert("1.0", text)
+        self.searchPreviewText.tag_config("search_match", background="#ffd166", foreground="#1f1f1f")
+
+        for match in matches:
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.searchPreviewText.tag_add("search_match", start, end)
+
+        self.searchPreviewText.configure(state="disabled")
+
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", report)
         self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
