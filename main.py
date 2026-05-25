@@ -156,6 +156,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Formating", self.textFormating),
             ("Text Comparison", self.textComparison),
             ("Text Generation", self.textGeneration),
+            ("Text Validation", self.textValidation),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -880,6 +881,133 @@ class TxtUtils(ctk.CTkScrollableFrame):
         for token, value in replacements.items():
             template = template.replace(token, value)
         return template
+
+    # -------------------- TEXT VALIDATION --------------------
+    def textValidation(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        file_buttons.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0)
+
+        ctk.CTkLabel(frame, text="Validation Type:", font=LABEL_FONT).grid(row=4, column=0, sticky="w")
+        self.validation_choice = ctk.CTkOptionMenu(
+            frame,
+            values=["Email Addresses", "Phone Numbers", "URLs"],
+            font=BUTTON_FONT,
+        )
+        self.validation_choice.grid(row=5, column=0, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Validate",
+            command=self._process_text_validation,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Validation Report:", font=LABEL_FONT).grid(row=7, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=180, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Report",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Report",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_validation(self):
+        text = self.inputText.get("1.0", "end-1c")
+        choice = self.validation_choice.get()
+
+        if choice == "Phone Numbers":
+            validator = self._is_valid_phone
+        elif choice == "URLs":
+            validator = self._is_valid_url
+        else:
+            validator = self._is_valid_email
+
+        # Validate each non-empty line so files or pasted lists produce useful reports.
+        values = [line.strip() for line in text.splitlines() if line.strip()]
+        if not values:
+            self._show_validation_report("No values to validate.")
+            return
+
+        report_lines = []
+        valid_count = 0
+        for value in values:
+            is_valid = validator(value)
+            valid_count += 1 if is_valid else 0
+            status = "VALID" if is_valid else "INVALID"
+            report_lines.append(f"{status}: {value}")
+
+        report_lines.insert(0, f"{choice}: {valid_count}/{len(values)} valid")
+        report_lines.insert(1, "")
+        self._show_validation_report("\n".join(report_lines))
+
+    def _is_valid_email(self, value):
+        pattern = r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+        return re.fullmatch(pattern, value) is not None
+
+    def _is_valid_phone(self, value):
+        pattern = r"^\+?[0-9][0-9\s().-]{6,}[0-9]$"
+        return re.fullmatch(pattern, value) is not None
+
+    def _is_valid_url(self, value):
+        pattern = r"^https?://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/[^\s]*)?$"
+        return re.fullmatch(pattern, value) is not None
+
+    def _show_validation_report(self, report):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", report)
+
+        self.outputText.tag_config("valid_line", foreground="#5ad66f")
+        self.outputText.tag_config("invalid_line", foreground="#ff6b6b")
+
+        for line_number, line in enumerate(report.splitlines(), start=1):
+            if line.startswith("VALID:"):
+                self.outputText.tag_add("valid_line", f"{line_number}.0", f"{line_number}.end")
+            elif line.startswith("INVALID:"):
+                self.outputText.tag_add("invalid_line", f"{line_number}.0", f"{line_number}.end")
+
+        self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
