@@ -475,7 +475,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.widthEntry.insert(0, "80")
 
         self.format_choice.configure(command=self._update_format_fields)
-        self._update_format_fields("Indent Text")
+        self._update_format_fields("Indent Text") 
 
         ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=7, column=0, sticky="w")
         self.outputText = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
