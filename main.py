@@ -1,6 +1,7 @@
 import ctypes
 import re
 import sys
+import textwrap
 from tkinter import filedialog
 
 import clipboard
@@ -141,6 +142,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Case Conversion", self.text_case_conversion),
             ("Text Counting", self.text_counting),
             ("Text Manipulation", self.text_manipulation),
+            ("Text Formating", self.textFormating),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -412,6 +414,141 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ctk.CTkButton(frame, text="Run", command=self._process_text_operation, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
             row=10, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
         )
+
+    # -------------------- TEXT FORMATING --------------------
+    def textFormating(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=150, font=INPUT_FONT)
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        file_buttons.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0)
+        ctk.CTkButton(
+            file_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0)
+
+        ctk.CTkLabel(frame, text="Choose Format:", font=LABEL_FONT).grid(row=4, column=0, sticky="w")
+        self.format_choice = ctk.CTkOptionMenu(
+            frame,
+            values=["Indent Text", "Align Left", "Align Center", "Align Right", "Wrap Text"],
+            font=BUTTON_FONT,
+        )
+        self.format_choice.grid(row=5, column=0, padx=PADX, pady=PADY, sticky="ew")
+
+        self.formatOptionsFrame = ctk.CTkFrame(frame)
+        self.formatOptionsFrame.grid(row=6, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
+
+        self.indentEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Indent spaces", font=INPUT_FONT)
+        self.widthEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Width", font=INPUT_FONT)
+        self.indentEntry.insert(0, "4")
+        self.widthEntry.insert(0, "80")
+
+        self.format_choice.configure(command=self._update_format_fields)
+        self._update_format_fields("Indent Text")
+
+        ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=7, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=150, font=INPUT_FONT)
+        self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        ctk.CTkButton(
+            frame,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
+        ).grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkButton(frame, text="Run", command=self._process_text_format, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
+            row=10, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
+        )
+
+    def _update_format_fields(self, choice):
+        for widget in self.formatOptionsFrame.winfo_children():
+            widget.grid_forget()
+
+        if choice == "Indent Text":
+            self.indentEntry.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="ew")
+        elif choice in ("Align Left", "Align Center", "Align Right", "Wrap Text"):
+            self.widthEntry.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="ew")
+
+    def _process_text_format(self):
+        text = self.inputText.get("1.0", "end").strip()
+        choice = self.format_choice.get()
+
+        # Read user values with sensible defaults if the entry is blank or invalid.
+        indent_spaces = self._get_positive_int(self.indentEntry.get(), 4)
+        width = self._get_positive_int(self.widthEntry.get(), 80)
+
+        if choice == "Indent Text":
+            result = self._indent_text(text, indent_spaces)
+        elif choice == "Align Center":
+            result = self._align_text(text, width, "center")
+        elif choice == "Align Right":
+            result = self._align_text(text, width, "right")
+        elif choice == "Wrap Text":
+            result = self._wrap_text(text, width)
+        else:
+            result = self._align_text(text, width, "left")
+
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", result)
+        self.outputText.configure(state="disabled")
+
+    def _get_positive_int(self, value, default):
+        try:
+            number = int(value)
+        except ValueError:
+            return default
+        return number if number > 0 else default
+
+    def _indent_text(self, text, spaces):
+        indent = " " * spaces
+        return "\n".join(indent + line if line else line for line in text.splitlines())
+
+    def _align_text(self, text, width, alignment):
+        aligned_lines = []
+        for line in text.splitlines():
+            if alignment == "center":
+                aligned_lines.append(line.center(width))
+            elif alignment == "right":
+                aligned_lines.append(line.rjust(width))
+            else:
+                aligned_lines.append(line.ljust(width))
+        return "\n".join(aligned_lines)
+
+    def _wrap_text(self, text, width):
+        wrapped_blocks = []
+        for block in text.splitlines():
+            wrapped_blocks.append(textwrap.fill(block, width=width) if block else "")
+        return "\n".join(wrapped_blocks)
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
