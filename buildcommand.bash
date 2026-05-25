@@ -1,1 +1,1 @@
-python -m PyInstaller --onedir --noconsole --icon icon-no-bg.ico --add-data "C:\Users\doggi\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\customtkinter;customtkinter"  main.py
+python -m PyInstaller --onedir --noconsole --icon icon-no-bg.ico --add-data "C:\Users\<user>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\customtkinter;customtkinter"  main.py

@@ -22,6 +22,7 @@ LABEL_FONT = (FONT_FAMILY, FONT_SIZE)
 BUTTON_FONT = (FONT_FAMILY, FONT_SIZE)
 INPUT_FONT = (FONT_FAMILY, FONT_SIZE)
 OR_LABEL_FONT = (FONT_FAMILY, 16)
+FORMAT_TEXT_FONT = ("Consolas", FONT_SIZE)
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(THEME_PATH)
@@ -430,7 +431,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
 
         ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
-        self.inputText = ctk.CTkTextbox(frame, height=150, font=INPUT_FONT)
+        self.inputText = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
         self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
 
         file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
@@ -464,8 +465,10 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.formatOptionsFrame = ctk.CTkFrame(frame)
         self.formatOptionsFrame.grid(row=6, column=0, columnspan=2, sticky="ew", padx=PADX, pady=PADY)
 
-        self.indentEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Indent spaces", font=INPUT_FONT)
-        self.widthEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Width", font=INPUT_FONT)
+        self.indentEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Indent", width=90, font=INPUT_FONT)
+        self.widthEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Width", width=90, font=INPUT_FONT)
+        self.indentUnitLabel = ctk.CTkLabel(self.formatOptionsFrame, text="spaces", font=LABEL_FONT)
+        self.widthUnitLabel = ctk.CTkLabel(self.formatOptionsFrame, text="characters", font=LABEL_FONT)
         self.indentEntry.insert(0, "4")
         self.widthEntry.insert(0, "80")
 
@@ -473,7 +476,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self._update_format_fields("Indent Text")
 
         ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=7, column=0, sticky="w")
-        self.outputText = ctk.CTkTextbox(frame, height=150, font=INPUT_FONT)
+        self.outputText = ctk.CTkTextbox(frame, height=150, font=FORMAT_TEXT_FONT, wrap="none")
         self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
         self.outputText.configure(state="disabled")
 
@@ -482,7 +485,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             text="Copy Output",
             height=BTN_HEIGHT,
             font=BUTTON_FONT,
-            command=lambda: clipboard.copy(self.outputText.get("1.0", "end").strip()),
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
         ).grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
 
         ctk.CTkButton(frame, text="Run", command=self._process_text_format, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
@@ -494,12 +497,14 @@ class TxtUtils(ctk.CTkScrollableFrame):
             widget.grid_forget()
 
         if choice == "Indent Text":
-            self.indentEntry.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="ew")
+            self.indentEntry.grid(row=0, column=0, padx=(PADX, 6), pady=PADY, sticky="w")
+            self.indentUnitLabel.grid(row=0, column=1, padx=(0, PADX), pady=PADY, sticky="w")
         elif choice in ("Align Left", "Align Center", "Align Right", "Wrap Text"):
-            self.widthEntry.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="ew")
+            self.widthEntry.grid(row=0, column=0, padx=(PADX, 6), pady=PADY, sticky="w")
+            self.widthUnitLabel.grid(row=0, column=1, padx=(0, PADX), pady=PADY, sticky="w")
 
     def _process_text_format(self):
-        text = self.inputText.get("1.0", "end").strip()
+        text = self.inputText.get("1.0", "end-1c")
         choice = self.format_choice.get()
 
         # Read user values with sensible defaults if the entry is blank or invalid.
@@ -508,18 +513,28 @@ class TxtUtils(ctk.CTkScrollableFrame):
 
         if choice == "Indent Text":
             result = self._indent_text(text, indent_spaces)
+            self._show_format_output(result)
         elif choice == "Align Center":
-            result = self._align_text(text, width, "center")
+            result = self._align_text(text)
+            self._show_format_output(result, "center")
         elif choice == "Align Right":
-            result = self._align_text(text, width, "right")
+            result = self._align_text(text)
+            self._show_format_output(result, "right")
         elif choice == "Wrap Text":
             result = self._wrap_text(text, width)
+            self._show_format_output(result)
         else:
-            result = self._align_text(text, width, "left")
+            result = self._align_text(text)
+            self._show_format_output(result, "left")
 
+    def _show_format_output(self, text, alignment=None):
         self.outputText.configure(state="normal")
+        self.outputText.configure(wrap="word" if alignment else "none")
         self.outputText.delete("1.0", "end")
-        self.outputText.insert("1.0", result)
+        self.outputText.insert("1.0", text)
+        if alignment:
+            self.outputText.tag_config("aligned_text", justify=alignment)
+            self.outputText.tag_add("aligned_text", "1.0", "end")
         self.outputText.configure(state="disabled")
 
     def _get_positive_int(self, value, default):
@@ -533,16 +548,8 @@ class TxtUtils(ctk.CTkScrollableFrame):
         indent = " " * spaces
         return "\n".join(indent + line if line else line for line in text.splitlines())
 
-    def _align_text(self, text, width, alignment):
-        aligned_lines = []
-        for line in text.splitlines():
-            if alignment == "center":
-                aligned_lines.append(line.center(width))
-            elif alignment == "right":
-                aligned_lines.append(line.rjust(width))
-            else:
-                aligned_lines.append(line.ljust(width))
-        return "\n".join(aligned_lines)
+    def _align_text(self, text):
+        return "\n".join(line.strip() for line in text.splitlines())
 
     def _wrap_text(self, text, width):
         wrapped_blocks = []
