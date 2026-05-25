@@ -171,6 +171,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Noise Removal", self.textNoiseRemoval),
             ("Text Escaping", self.textEscaping),
             ("Text Metrics", self.textMetrics),
+            ("Text Styling", self.textStyling),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1777,6 +1778,149 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", report)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT STYLING --------------------
+    def textStyling(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        styling_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        styling_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        styling_controls.columnconfigure((1, 2), weight=1)
+
+        ctk.CTkButton(
+            styling_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.styling_format_choice = ctk.CTkOptionMenu(
+            styling_controls,
+            values=["Markdown", "HTML", "BBCode"],
+            font=BUTTON_FONT,
+        )
+        self.styling_format_choice.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.styling_style_choice = ctk.CTkOptionMenu(
+            styling_controls,
+            values=["Bold", "Italic", "Underline", "Heading", "Quote", "Code", "List"],
+            font=BUTTON_FONT,
+        )
+        self.styling_style_choice.grid(row=0, column=2, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Apply Styling",
+            command=self._process_text_styling,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Styled Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_styling(self):
+        text = self.inputText.get("1.0", "end-1c")
+        output_format = self.styling_format_choice.get()
+        style = self.styling_style_choice.get()
+
+        if output_format == "HTML":
+            styled_text = self._style_as_html(text, style)
+        elif output_format == "BBCode":
+            styled_text = self._style_as_bbcode(text, style)
+        else:
+            styled_text = self._style_as_markdown(text, style)
+
+        self._show_styling_output(styled_text)
+
+    def _style_as_markdown(self, text, style):
+        if style == "Bold":
+            return f"**{text}**"
+        if style == "Italic":
+            return f"*{text}*"
+        if style == "Underline":
+            return f"<u>{html.escape(text)}</u>"
+        if style == "Heading":
+            return "\n".join(f"# {line}" if line else line for line in text.splitlines())
+        if style == "Quote":
+            return "\n".join(f"> {line}" if line else ">" for line in text.splitlines())
+        if style == "Code":
+            return f"```\n{text}\n```"
+        return "\n".join(f"- {line}" if line else line for line in text.splitlines())
+
+    def _style_as_html(self, text, style):
+        escaped_text = html.escape(text)
+        if style == "Bold":
+            return f"<strong>{escaped_text}</strong>"
+        if style == "Italic":
+            return f"<em>{escaped_text}</em>"
+        if style == "Underline":
+            return f"<u>{escaped_text}</u>"
+        if style == "Heading":
+            return f"<h1>{escaped_text}</h1>"
+        if style == "Quote":
+            return f"<blockquote>{escaped_text}</blockquote>"
+        if style == "Code":
+            return f"<pre><code>{escaped_text}</code></pre>"
+        items = "\n".join(f"  <li>{html.escape(line)}</li>" for line in text.splitlines() if line)
+        return f"<ul>\n{items}\n</ul>"
+
+    def _style_as_bbcode(self, text, style):
+        if style == "Bold":
+            return f"[b]{text}[/b]"
+        if style == "Italic":
+            return f"[i]{text}[/i]"
+        if style == "Underline":
+            return f"[u]{text}[/u]"
+        if style == "Heading":
+            return f"[size=150][b]{text}[/b][/size]"
+        if style == "Quote":
+            return f"[quote]{text}[/quote]"
+        if style == "Code":
+            return f"[code]{text}[/code]"
+        items = "\n".join(f"[*]{line}" for line in text.splitlines() if line)
+        return f"[list]\n{items}\n[/list]"
+
+    def _show_styling_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
         self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
