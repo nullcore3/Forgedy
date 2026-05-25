@@ -1,6 +1,7 @@
 import ctypes
 import difflib
 import html
+import json
 import re
 import secrets
 import string
@@ -167,6 +168,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Sorting", self.textSorting),
             ("Text Merging", self.textMerging),
             ("Text Noise Removal", self.textNoiseRemoval),
+            ("Text Escaping", self.textEscaping),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1517,6 +1519,103 @@ class TxtUtils(ctk.CTkScrollableFrame):
         return text
 
     def _show_noise_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT ESCAPING --------------------
+    def textEscaping(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        escape_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        escape_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        escape_controls.columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            escape_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.escape_choice = ctk.CTkOptionMenu(
+            escape_controls,
+            values=["Escape HTML", "Escape JSON", "Escape XML"],
+            font=BUTTON_FONT,
+        )
+        self.escape_choice.grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Escape Text",
+            command=self._process_text_escaping,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Escaped Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_escaping(self):
+        text = self.inputText.get("1.0", "end-1c")
+        choice = self.escape_choice.get()
+
+        if choice == "Escape JSON":
+            escaped_text = self._escape_json(text)
+        elif choice == "Escape XML":
+            escaped_text = self._escape_xml(text)
+        else:
+            escaped_text = self._escape_html(text)
+
+        self._show_escape_output(escaped_text)
+
+    def _escape_html(self, text):
+        return html.escape(text, quote=True)
+
+    def _escape_json(self, text):
+        return json.dumps(text)[1:-1]
+
+    def _escape_xml(self, text):
+        return html.escape(text, quote=True).replace("&#x27;", "&apos;")
+
+    def _show_escape_output(self, text):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
