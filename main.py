@@ -1,5 +1,6 @@
 import ctypes
 import difflib
+import html
 import re
 import secrets
 import string
@@ -33,6 +34,11 @@ TEXT_FILETYPES = [
     ),
     ("All files", "*.*"),
 ]
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "has", "have", "he", "her",
+    "his", "i", "in", "is", "it", "its", "of", "on", "or", "our", "she", "that", "the", "their", "they",
+    "this", "to", "was", "we", "were", "with", "you", "your",
+}
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(THEME_PATH)
@@ -160,6 +166,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Search", self.textSearch),
             ("Text Sorting", self.textSorting),
             ("Text Merging", self.textMerging),
+            ("Text Noise Removal", self.textNoiseRemoval),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1396,6 +1403,120 @@ class TxtUtils(ctk.CTkScrollableFrame):
         return "\n".join(unique_lines)
 
     def _show_merge_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT NOISE REMOVAL --------------------
+    def textNoiseRemoval(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        noise_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        noise_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        noise_controls.columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            noise_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.noise_choice = ctk.CTkOptionMenu(
+            noise_controls,
+            values=["Remove HTML Tags", "Remove Comments", "Filter Stopwords", "Remove All Noise"],
+            font=BUTTON_FONT,
+        )
+        self.noise_choice.grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Clean Text",
+            command=self._process_text_noise_removal,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Cleaned Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_noise_removal(self):
+        text = self.inputText.get("1.0", "end-1c")
+        choice = self.noise_choice.get()
+
+        if choice == "Remove HTML Tags":
+            cleaned_text = self._remove_html_tags(text)
+        elif choice == "Remove Comments":
+            cleaned_text = self._remove_comments(text)
+        elif choice == "Filter Stopwords":
+            cleaned_text = self._filter_stopwords(text)
+        else:
+            cleaned_text = self._remove_html_tags(text)
+            cleaned_text = self._remove_comments(cleaned_text)
+            cleaned_text = self._filter_stopwords(cleaned_text)
+
+        self._show_noise_output(cleaned_text)
+
+    def _remove_html_tags(self, text):
+        text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", "", text)
+        text = re.sub(r"(?s)<[^>]+>", "", text)
+        return html.unescape(text)
+
+    def _remove_comments(self, text):
+        text = re.sub(r"(?s)<!--.*?-->", "", text)
+        text = re.sub(r"(?s)/\*.*?\*/", "", text)
+        text = re.sub(r"(?m)^\s*#.*$", "", text)
+        text = re.sub(r"(?m)//.*$", "", text)
+        return text
+
+    def _filter_stopwords(self, text):
+        def replace_word(match):
+            word = match.group(0)
+            return "" if word.lower() in STOPWORDS else word
+
+        text = re.sub(r"\b[A-Za-z]+\b", replace_word, text)
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        text = re.sub(r"(?m)^[ \t]+|[ \t]+$", "", text)
+        return text
+
+    def _show_noise_output(self, text):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
