@@ -158,6 +158,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Generation", self.textGeneration),
             ("Text Validation", self.textValidation),
             ("Text Search", self.textSearch),
+            ("Text Sorting", self.textSorting),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1150,6 +1151,107 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", report)
         self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT SORTING --------------------
+    def textSorting(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        sort_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        sort_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        sort_controls.columnconfigure((1, 2), weight=1)
+
+        ctk.CTkButton(
+            sort_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.sort_choice = ctk.CTkOptionMenu(
+            sort_controls,
+            values=["Alphabetically", "Numerically", "By Length"],
+            font=BUTTON_FONT,
+        )
+        self.sort_choice.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.sort_order_choice = ctk.CTkOptionMenu(
+            sort_controls,
+            values=["Ascending", "Descending"],
+            font=BUTTON_FONT,
+        )
+        self.sort_order_choice.grid(row=0, column=2, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Sort",
+            command=self._process_text_sorting,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_sorting(self):
+        text = self.inputText.get("1.0", "end-1c")
+        lines = text.splitlines()
+        choice = self.sort_choice.get()
+        reverse_sort = self.sort_order_choice.get() == "Descending"
+
+        # Keep blank lines out of the sort so pasted lists produce clean output.
+        sortable_lines = [line for line in lines if line.strip()]
+        if choice == "Numerically":
+            sorted_lines = sorted(sortable_lines, key=self._numeric_sort_key, reverse=reverse_sort)
+        elif choice == "By Length":
+            sorted_lines = sorted(sortable_lines, key=lambda line: (len(line), line.lower()), reverse=reverse_sort)
+        else:
+            sorted_lines = sorted(sortable_lines, key=str.lower, reverse=reverse_sort)
+
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", "\n".join(sorted_lines))
+        self.outputText.configure(state="disabled")
+
+    def _numeric_sort_key(self, line):
+        match = re.search(r"-?\d+(?:\.\d+)?", line)
+        if not match:
+            return (1, 0, line.lower())
+        return (0, float(match.group()), line.lower())
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
