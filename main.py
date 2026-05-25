@@ -1,6 +1,8 @@
 import ctypes
+import csv
 import difflib
 import html
+import io
 import json
 import math
 import re
@@ -8,6 +10,7 @@ import secrets
 import string
 import sys
 import textwrap
+import xml.etree.ElementTree as ET
 from tkinter import filedialog
 
 import clipboard
@@ -29,22 +32,11 @@ BUTTON_FONT = (FONT_FAMILY, FONT_SIZE)
 INPUT_FONT = (FONT_FAMILY, FONT_SIZE)
 OR_LABEL_FONT = (FONT_FAMILY, 16)
 FORMAT_TEXT_FONT = ("Consolas", FONT_SIZE)
-TEXT_FILETYPES = [
-    (
-        "Text files",
-        "*.txt *.md *.csv *.tsv *.json *.xml *.html *.css *.js *.py *.log *.ini *.cfg *.yaml *.yml",
-    ),
-    ("All files", "*.*"),
-]
-STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "has", "have", "he", "her",
-    "his", "i", "in", "is", "it", "its", "of", "on", "or", "our", "she", "that", "the", "their", "they",
-    "this", "to", "was", "we", "were", "with", "you", "your",
-}
+TEXT_FILETYPES = [("Text files","*.txt *.md *.csv *.tsv *.json *.xml *.html *.css *.js *.py *.log *.ini *.cfg *.yaml *.yml", ), ("All files", "*.*"),]
+STOPWORDS = {"a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "has", "have", "he", "her","his", "i", "in", "is", "it", "its", "of", "on", "or", "our", "she", "that", "the", "their", "they","this", "to", "was", "we", "were", "with", "you", "your",}
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(THEME_PATH)
-
 
 class SeparatorLine(ctk.CTkFrame):
     def __init__(self, master=None):
@@ -52,7 +44,6 @@ class SeparatorLine(ctk.CTkFrame):
         line = ctk.CTkFrame(self, width=780, height=4, corner_radius=5)
         line.grid(row=0, column=0, sticky="nsew")
         line.grid_propagate(False)
-
 
 class TxtUtils(ctk.CTkScrollableFrame):
     def __init__(self, master=None):
@@ -172,6 +163,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Escaping", self.textEscaping),
             ("Text Metrics", self.textMetrics),
             ("Text Styling", self.textStyling),
+            ("Text Parsing", self.textParsing),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1918,6 +1910,134 @@ class TxtUtils(ctk.CTkScrollableFrame):
         return f"[list]\n{items}\n[/list]"
 
     def _show_styling_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT PARSING --------------------
+    def textParsing(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        parsing_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        parsing_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        parsing_controls.columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            parsing_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.parsing_choice = ctk.CTkOptionMenu(
+            parsing_controls,
+            values=["Parse CSV", "Parse JSON", "Parse XML"],
+            font=BUTTON_FONT,
+        )
+        self.parsing_choice.grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Parse Text",
+            command=self._process_text_parsing,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Structured Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_parsing(self):
+        text = self.inputText.get("1.0", "end-1c")
+        choice = self.parsing_choice.get()
+
+        try:
+            if choice == "Parse JSON":
+                parsed_text = self._parse_json_text(text)
+            elif choice == "Parse XML":
+                parsed_text = self._parse_xml_text(text)
+            else:
+                parsed_text = self._parse_csv_text(text)
+        except Exception as error:
+            parsed_text = f"Parse error: {error}"
+
+        self._show_parsing_output(parsed_text)
+
+    def _parse_csv_text(self, text):
+        sample = text[:1024]
+        dialect = csv.Sniffer().sniff(sample) if sample.strip() else csv.excel
+        has_header = csv.Sniffer().has_header(sample) if sample.strip() else False
+
+        if has_header:
+            reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+            rows = list(reader)
+            return json.dumps({"rows": rows, "row_count": len(rows)}, indent=2)
+
+        reader = csv.reader(io.StringIO(text), dialect=dialect)
+        rows = list(reader)
+        return json.dumps({"rows": rows, "row_count": len(rows)}, indent=2)
+
+    def _parse_json_text(self, text):
+        parsed_data = json.loads(text)
+        return json.dumps(parsed_data, indent=2, ensure_ascii=False)
+
+    def _parse_xml_text(self, text):
+        root = ET.fromstring(text)
+        return "\n".join(self._format_xml_element(root))
+
+    def _format_xml_element(self, element, depth=0):
+        indent = "  " * depth
+        attributes = " ".join(f'{key}="{value}"' for key, value in element.attrib.items())
+        label = f"{indent}{element.tag}" + (f" ({attributes})" if attributes else "")
+        lines = [label]
+
+        # Include text content and recursively list child elements as a readable tree.
+        if element.text and element.text.strip():
+            lines.append(f"{indent}  text: {element.text.strip()}")
+        for child in element:
+            lines.extend(self._format_xml_element(child, depth + 1))
+            if child.tail and child.tail.strip():
+                lines.append(f"{indent}  tail: {child.tail.strip()}")
+        return lines
+
+    def _show_parsing_output(self, text):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
