@@ -10,6 +10,8 @@ import secrets
 import string
 import sys
 import textwrap
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from tkinter import filedialog
 
@@ -164,6 +166,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Metrics", self.textMetrics),
             ("Text Styling", self.textStyling),
             ("Text Parsing", self.textParsing),
+            ("Text Translation", self.textTranslation),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -2038,6 +2041,141 @@ class TxtUtils(ctk.CTkScrollableFrame):
         return lines
 
     def _show_parsing_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT TRANSLATION --------------------
+    def textTranslation(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=160, font=FORMAT_TEXT_FONT, wrap="word")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        translation_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        translation_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        translation_controls.columnconfigure((1, 2, 3), weight=1)
+
+        ctk.CTkButton(
+            translation_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.translation_provider_choice = ctk.CTkOptionMenu(
+            translation_controls,
+            values=["Detect Only", "MyMemory API"],
+            font=BUTTON_FONT,
+        )
+        self.translation_provider_choice.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.sourceLanguageEntry = ctk.CTkEntry(translation_controls, placeholder_text="Source: auto", font=INPUT_FONT)
+        self.sourceLanguageEntry.grid(row=0, column=2, padx=(6, 6), pady=0, sticky="ew")
+        self.targetLanguageEntry = ctk.CTkEntry(translation_controls, placeholder_text="Target: en", font=INPUT_FONT)
+        self.targetLanguageEntry.grid(row=0, column=3, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Translate",
+            command=self._process_text_translation,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Translation Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="word")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_translation(self):
+        text = self.inputText.get("1.0", "end-1c").strip()
+        provider = self.translation_provider_choice.get()
+        source_language = self.sourceLanguageEntry.get().strip() or "auto"
+        target_language = self.targetLanguageEntry.get().strip() or "en"
+
+        if not text:
+            self._show_translation_output("Enter text before translating.")
+            return
+
+        detected_language = self._detect_language(text)
+        if provider == "Detect Only":
+            self._show_translation_output(f"Detected language: {detected_language}")
+            return
+
+        try:
+            translated_text = self._translate_with_mymemory(text, source_language, target_language)
+        except Exception as error:
+            translated_text = f"Detected language: {detected_language}\nTranslation error: {error}"
+
+        self._show_translation_output(translated_text)
+
+    def _detect_language(self, text):
+        lowered_text = text.lower()
+        language_markers = {
+            "es": (" el ", " la ", " que ", " de ", " hola ", " gracias "),
+            "fr": (" le ", " la ", " que ", " de ", " bonjour ", " merci "),
+            "de": (" der ", " die ", " das ", " und ", " hallo ", " danke "),
+            "it": (" il ", " la ", " che ", " di ", " ciao ", " grazie "),
+            "pt": (" o ", " a ", " que ", " de ", " olá ", " obrigado "),
+        }
+        padded_text = f" {lowered_text} "
+        scores = {
+            language: sum(padded_text.count(marker) for marker in markers)
+            for language, markers in language_markers.items()
+        }
+        best_language = max(scores, key=scores.get)
+        return best_language if scores[best_language] else "en"
+
+    def _translate_with_mymemory(self, text, source_language, target_language):
+        source_language = self._resolve_auto_language(text, source_language)
+        query = urllib.parse.urlencode({"q": text, "langpair": f"{source_language}|{target_language}"})
+        url = f"https://api.mymemory.translated.net/get?{query}"
+        with urllib.request.urlopen(url, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        translated_text = payload.get("responseData", {}).get("translatedText")
+        return translated_text if translated_text else "No translation returned."
+
+    def _resolve_auto_language(self, text, source_language):
+        return self._detect_language(text) if source_language.lower() == "auto" else source_language.lower()
+
+    def _show_translation_output(self, text):
+        if text is None:
+            text = ""
+        elif not isinstance(text, str):
+            text = str(text)
+
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
