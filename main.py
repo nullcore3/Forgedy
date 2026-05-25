@@ -1,6 +1,8 @@
 import ctypes
 import csv
+import base64
 import difflib
+import gzip
 import html
 import io
 import json
@@ -17,6 +19,11 @@ from tkinter import filedialog
 
 import clipboard
 import customtkinter as ctk
+
+try:
+    import brotli
+except ImportError:
+    brotli = None
 
 myappid = 'mycompany.myproduct.subproduct.version'
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -167,6 +174,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Styling", self.textStyling),
             ("Text Parsing", self.textParsing),
             ("Text Translation", self.textTranslation),
+            ("Text Compression", self.textCompression),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -2176,6 +2184,124 @@ class TxtUtils(ctk.CTkScrollableFrame):
         elif not isinstance(text, str):
             text = str(text)
 
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT COMPRESSION --------------------
+    def textCompression(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        compression_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        compression_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        compression_controls.columnconfigure((1, 2), weight=1)
+
+        ctk.CTkButton(
+            compression_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.compression_algorithm_choice = ctk.CTkOptionMenu(
+            compression_controls,
+            values=["Gzip", "Brotli"],
+            font=BUTTON_FONT,
+        )
+        self.compression_algorithm_choice.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.compression_action_choice = ctk.CTkOptionMenu(
+            compression_controls,
+            values=["Compress", "Decompress"],
+            font=BUTTON_FONT,
+        )
+        self.compression_action_choice.grid(row=0, column=2, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Run Compression",
+            command=self._process_text_compression,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_compression(self):
+        text = self.inputText.get("1.0", "end-1c")
+        algorithm = self.compression_algorithm_choice.get()
+        action = self.compression_action_choice.get()
+
+        try:
+            if action == "Decompress":
+                result = self._decompress_text(text, algorithm)
+            else:
+                result = self._compress_text(text, algorithm)
+        except Exception as error:
+            result = f"Compression error: {error}"
+
+        self._show_compression_output(result)
+
+    def _compress_text(self, text, algorithm):
+        raw_bytes = text.encode("utf-8")
+        if algorithm == "Brotli":
+            if brotli is None:
+                return "Brotli support is not installed. Install the 'brotli' package to use this option."
+            compressed_bytes = brotli.compress(raw_bytes)
+        else:
+            compressed_bytes = gzip.compress(raw_bytes)
+
+        # Binary compressed data is encoded as Base64 so it can be copied and saved as text.
+        return base64.b64encode(compressed_bytes).decode("ascii")
+
+    def _decompress_text(self, text, algorithm):
+        compressed_bytes = base64.b64decode(text.strip())
+        if algorithm == "Brotli":
+            if brotli is None:
+                return "Brotli support is not installed. Install the 'brotli' package to use this option."
+            raw_bytes = brotli.decompress(compressed_bytes)
+        else:
+            raw_bytes = gzip.decompress(compressed_bytes)
+        return raw_bytes.decode("utf-8")
+
+    def _show_compression_output(self, text):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
