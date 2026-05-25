@@ -1,4 +1,5 @@
 import ctypes
+import difflib
 import re
 import sys
 import textwrap
@@ -23,6 +24,13 @@ BUTTON_FONT = (FONT_FAMILY, FONT_SIZE)
 INPUT_FONT = (FONT_FAMILY, FONT_SIZE)
 OR_LABEL_FONT = (FONT_FAMILY, 16)
 FORMAT_TEXT_FONT = ("Consolas", FONT_SIZE)
+TEXT_FILETYPES = [
+    (
+        "Text files",
+        "*.txt *.md *.csv *.tsv *.json *.xml *.html *.css *.js *.py *.log *.ini *.cfg *.yaml *.yml",
+    ),
+    ("All files", "*.*"),
+]
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(THEME_PATH)
@@ -144,11 +152,12 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Counting", self.text_counting),
             ("Text Manipulation", self.text_manipulation),
             ("Text Formating", self.textFormating),
+            ("Text Comparison", self.textComparison),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
             ctk.CTkButton(self.txtUtilsContainer, text=text, height=50, font=BUTTON_FONT, command=command).grid(
-                row=0, column=index, padx=PADX, pady=PADY, sticky="ew"
+                row=index // 4, column=index % 4, padx=PADX, pady=PADY, sticky="ew"
             )
 
     def _configure_grid(self, frame, columns=0, rows=0):
@@ -195,7 +204,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
     def save_text(self, text):
         filename = filedialog.asksaveasfilename(
             defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            filetypes=TEXT_FILETYPES,
         )
         if not filename:
             return
@@ -212,7 +221,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.save_text(self.outputText.get("1.0", "end"))
 
     def select_file(self):
-        filename = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        filename = filedialog.askopenfilename(filetypes=TEXT_FILETYPES)
         if not filename:
             return
 
@@ -445,14 +454,6 @@ class TxtUtils(ctk.CTkScrollableFrame):
             height=BTN_HEIGHT,
             font=BUTTON_FONT,
         ).grid(row=0, column=0, padx=(0, 6), pady=0)
-        ctk.CTkButton(
-            file_buttons,
-            text="Save Output",
-            command=self.save_output_text,
-            width=BTN_WIDTH,
-            height=BTN_HEIGHT,
-            font=BUTTON_FONT,
-        ).grid(row=0, column=1, padx=(6, 0), pady=0)
 
         ctk.CTkLabel(frame, text="Choose Format:", font=LABEL_FONT).grid(row=4, column=0, sticky="w")
         self.format_choice = ctk.CTkOptionMenu(
@@ -469,6 +470,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.widthEntry = ctk.CTkEntry(self.formatOptionsFrame, placeholder_text="Width", width=90, font=INPUT_FONT)
         self.indentUnitLabel = ctk.CTkLabel(self.formatOptionsFrame, text="spaces", font=LABEL_FONT)
         self.widthUnitLabel = ctk.CTkLabel(self.formatOptionsFrame, text="characters", font=LABEL_FONT)
+        self.alignInfoLabel = ctk.CTkLabel(self.formatOptionsFrame, text="Uses output box width", font=LABEL_FONT)
         self.indentEntry.insert(0, "4")
         self.widthEntry.insert(0, "80")
 
@@ -480,13 +482,24 @@ class TxtUtils(ctk.CTkScrollableFrame):
         self.outputText.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
         self.outputText.configure(state="disabled")
 
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
         ctk.CTkButton(
-            frame,
+            output_buttons,
             text="Copy Output",
             height=BTN_HEIGHT,
             font=BUTTON_FONT,
             command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
-        ).grid(row=9, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
 
         ctk.CTkButton(frame, text="Run", command=self._process_text_format, height=BTN_HEIGHT, font=BUTTON_FONT).grid(
             row=10, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew"
@@ -499,9 +512,11 @@ class TxtUtils(ctk.CTkScrollableFrame):
         if choice == "Indent Text":
             self.indentEntry.grid(row=0, column=0, padx=(PADX, 6), pady=PADY, sticky="w")
             self.indentUnitLabel.grid(row=0, column=1, padx=(0, PADX), pady=PADY, sticky="w")
-        elif choice in ("Align Left", "Align Center", "Align Right", "Wrap Text"):
+        elif choice == "Wrap Text":
             self.widthEntry.grid(row=0, column=0, padx=(PADX, 6), pady=PADY, sticky="w")
             self.widthUnitLabel.grid(row=0, column=1, padx=(0, PADX), pady=PADY, sticky="w")
+        elif choice in ("Align Left", "Align Center", "Align Right"):
+            self.alignInfoLabel.grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
 
     def _process_text_format(self):
         text = self.inputText.get("1.0", "end-1c")
@@ -556,6 +571,158 @@ class TxtUtils(ctk.CTkScrollableFrame):
         for block in text.splitlines():
             wrapped_blocks.append(textwrap.fill(block, width=width) if block else "")
         return "\n".join(wrapped_blocks)
+
+    # -------------------- TEXT COMPARISON --------------------
+    def textComparison(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        self.comparisonFileOne = ""
+        self.comparisonFileTwo = ""
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Text Files:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        file_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        file_buttons.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        file_buttons.columnconfigure((1, 3), weight=1)
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select Original",
+            command=lambda: self._select_comparison_file(1),
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=(0, PADY), sticky="w")
+        self.comparisonFileOneLabel = ctk.CTkLabel(file_buttons, text="No file selected", font=LABEL_FONT, anchor="w")
+        self.comparisonFileOneLabel.grid(row=0, column=1, padx=(0, PADX), pady=(0, PADY), sticky="ew")
+
+        ctk.CTkButton(
+            file_buttons,
+            text="Select Modified",
+            command=lambda: self._select_comparison_file(2),
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=1, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.comparisonFileTwoLabel = ctk.CTkLabel(file_buttons, text="No file selected", font=LABEL_FONT, anchor="w")
+        self.comparisonFileTwoLabel.grid(row=1, column=1, padx=(0, PADX), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Generate Diff Report",
+            command=self._process_text_comparison,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Diff Report:", font=LABEL_FONT).grid(row=4, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=260, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=5, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Report",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Report",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _select_comparison_file(self, file_number):
+        filename = filedialog.askopenfilename(filetypes=TEXT_FILETYPES)
+        if not filename:
+            return
+
+        if file_number == 1:
+            self.comparisonFileOne = filename
+            self.comparisonFileOneLabel.configure(text=filename)
+        else:
+            self.comparisonFileTwo = filename
+            self.comparisonFileTwoLabel.configure(text=filename)
+
+    def _process_text_comparison(self):
+        if not self.comparisonFileOne or not self.comparisonFileTwo:
+            self._show_comparison_report("Select two text files before generating a report.")
+            return
+
+        with open(self.comparisonFileOne, "r", encoding="utf-8") as first_file:
+            original_lines = first_file.read().splitlines()
+        with open(self.comparisonFileTwo, "r", encoding="utf-8") as second_file:
+            modified_lines = second_file.read().splitlines()
+
+        report_lines = self._build_diff_report(original_lines, modified_lines)
+        self._show_comparison_report("\n".join(report_lines))
+
+    def _build_diff_report(self, original_lines, modified_lines):
+        matcher = difflib.SequenceMatcher(None, original_lines, modified_lines)
+        report_lines = ["Text Comparison Report", ""]
+
+        for tag, original_start, original_end, modified_start, modified_end in matcher.get_opcodes():
+            if tag == "equal":
+                continue
+
+            # Convert SequenceMatcher opcodes into readable added, removed, and modified sections.
+            if tag == "insert":
+                for index, line in enumerate(modified_lines[modified_start:modified_end], start=modified_start + 1):
+                    report_lines.append(f"+ Added line {index}: {line}")
+            elif tag == "delete":
+                for index, line in enumerate(original_lines[original_start:original_end], start=original_start + 1):
+                    report_lines.append(f"- Removed line {index}: {line}")
+            elif tag == "replace":
+                original_block = original_lines[original_start:original_end]
+                modified_block = modified_lines[modified_start:modified_end]
+                for offset, (old_line, new_line) in enumerate(zip(original_block, modified_block)):
+                    report_lines.append(f"* Modified line {original_start + offset + 1}:")
+                    report_lines.append(f"-   Original: {old_line}")
+                    report_lines.append(f"+   Modified: {new_line}")
+                for index, line in enumerate(original_block[len(modified_block):], start=original_start + len(modified_block) + 1):
+                    report_lines.append(f"- Removed line {index}: {line}")
+                for index, line in enumerate(modified_block[len(original_block):], start=modified_start + len(original_block) + 1):
+                    report_lines.append(f"+ Added line {index}: {line}")
+
+        if len(report_lines) == 2:
+            report_lines.append("No differences found.")
+
+        return report_lines
+
+    def _show_comparison_report(self, report):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", report)
+
+        self.outputText.tag_config("added_line", foreground="#5ad66f")
+        self.outputText.tag_config("removed_line", foreground="#ff6b6b")
+        self.outputText.tag_config("modified_line", foreground="#ffd166")
+
+        for line_number, line in enumerate(report.splitlines(), start=1):
+            if line.startswith("+"):
+                self.outputText.tag_add("added_line", f"{line_number}.0", f"{line_number}.end")
+            elif line.startswith("-"):
+                self.outputText.tag_add("removed_line", f"{line_number}.0", f"{line_number}.end")
+            elif line.startswith("*"):
+                self.outputText.tag_add("modified_line", f"{line_number}.0", f"{line_number}.end")
+
+        self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
