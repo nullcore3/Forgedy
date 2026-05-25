@@ -159,6 +159,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Validation", self.textValidation),
             ("Text Search", self.textSearch),
             ("Text Sorting", self.textSorting),
+            ("Text Merging", self.textMerging),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -1252,6 +1253,153 @@ class TxtUtils(ctk.CTkScrollableFrame):
         if not match:
             return (1, 0, line.lower())
         return (0, float(match.group()), line.lower())
+
+    # -------------------- TEXT MERGING --------------------
+    def textMerging(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        self.mergeFiles = []
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Manual Source Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=130, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        merge_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        merge_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        merge_controls.columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            merge_controls,
+            text="Select Files",
+            command=self._select_merge_files,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.mergeFilesLabel = ctk.CTkLabel(merge_controls, text="No files selected", font=LABEL_FONT, anchor="w")
+        self.mergeFilesLabel.grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        options = ctk.CTkFrame(frame, fg_color="transparent")
+        options.grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        options.columnconfigure((0, 1), weight=1)
+
+        self.merge_mode_choice = ctk.CTkOptionMenu(
+            options,
+            values=["Append Sources", "Combine Lines"],
+            font=BUTTON_FONT,
+        )
+        self.merge_mode_choice.grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        self.merge_duplicate_choice = ctk.CTkOptionMenu(
+            options,
+            values=["Keep Duplicates", "Remove Duplicates"],
+            font=BUTTON_FONT,
+        )
+        self.merge_duplicate_choice.grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Merge",
+            command=self._process_text_merging,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=5, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Merged Output:", font=LABEL_FONT).grid(row=6, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=8, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _select_merge_files(self):
+        filenames = filedialog.askopenfilenames(filetypes=TEXT_FILETYPES)
+        if not filenames:
+            return
+
+        self.mergeFiles = list(filenames)
+        self.mergeFilesLabel.configure(text=f"{len(self.mergeFiles)} files selected")
+
+    def _process_text_merging(self):
+        sources = self._get_merge_sources()
+        if not sources:
+            self._show_merge_output("Add manual text or select files before merging.")
+            return
+
+        if self.merge_mode_choice.get() == "Combine Lines":
+            merged_text = self._merge_sources_by_line(sources)
+        else:
+            merged_text = "\n\n".join(source for source in sources if source)
+
+        if self.merge_duplicate_choice.get() == "Remove Duplicates":
+            merged_text = self._remove_duplicate_lines(merged_text)
+
+        self._show_merge_output(merged_text)
+
+    def _get_merge_sources(self):
+        sources = []
+        manual_text = self.inputText.get("1.0", "end-1c")
+        if manual_text.strip():
+            sources.append(manual_text)
+
+        for filename in self.mergeFiles:
+            with open(filename, "r", encoding="utf-8") as text_file:
+                sources.append(text_file.read())
+        return sources
+
+    def _merge_sources_by_line(self, sources):
+        line_groups = [source.splitlines() for source in sources]
+        max_lines = max((len(lines) for lines in line_groups), default=0)
+        merged_lines = []
+
+        # Interleave matching line numbers from each source to combine related rows together.
+        for line_index in range(max_lines):
+            for lines in line_groups:
+                if line_index < len(lines):
+                    merged_lines.append(lines[line_index])
+        return "\n".join(merged_lines)
+
+    def _remove_duplicate_lines(self, text):
+        seen = set()
+        unique_lines = []
+        for line in text.splitlines():
+            if line in seen:
+                continue
+            seen.add(line)
+            unique_lines.append(line)
+        return "\n".join(unique_lines)
+
+    def _show_merge_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
 
     def _update_pattern_fields(self, choice):
         for widget in self.patternFrame.winfo_children():
