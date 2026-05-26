@@ -3,10 +3,12 @@ import csv
 import base64
 import difflib
 import gzip
+import hashlib
 import html
 import io
 import json
 import math
+import os
 import re
 import secrets
 import string
@@ -24,6 +26,17 @@ try:
     import brotli
 except ImportError:
     brotli = None
+
+try:
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives import hashes, serialization
+except ImportError:
+    AESGCM = None
+    hashes = None
+    padding = None
+    rsa = None
+    serialization = None
 
 myappid = 'mycompany.myproduct.subproduct.version'
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -175,6 +188,7 @@ class TxtUtils(ctk.CTkScrollableFrame):
             ("Text Parsing", self.textParsing),
             ("Text Translation", self.textTranslation),
             ("Text Compression", self.textCompression),
+            ("Text Encryption", self.textEncryption),
         ]
 
         for index, (text, command) in enumerate(menu_buttons):
@@ -2302,6 +2316,172 @@ class TxtUtils(ctk.CTkScrollableFrame):
         return raw_bytes.decode("utf-8")
 
     def _show_compression_output(self, text):
+        self.outputText.configure(state="normal")
+        self.outputText.delete("1.0", "end")
+        self.outputText.insert("1.0", text)
+        self.outputText.configure(state="disabled")
+
+    # -------------------- TEXT ENCRYPTION --------------------
+    def textEncryption(self):
+        frame = self.open_submenu()
+        self._configure_grid(frame, columns=2, rows=8)
+
+        ctk.CTkButton(
+            frame,
+            text="Back",
+            command=self.close_submenu,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=PADX, pady=PADY, sticky="w")
+
+        ctk.CTkLabel(frame, text="Input Text:", font=LABEL_FONT).grid(row=1, column=0, sticky="w")
+        self.inputText = ctk.CTkTextbox(frame, height=170, font=FORMAT_TEXT_FONT, wrap="none")
+        self.inputText.grid(row=2, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+
+        encryption_controls = ctk.CTkFrame(frame, fg_color="transparent")
+        encryption_controls.grid(row=3, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        encryption_controls.columnconfigure((1, 2), weight=1)
+
+        ctk.CTkButton(
+            encryption_controls,
+            text="Select File",
+            command=self.select_file,
+            width=BTN_WIDTH,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="w")
+        self.encryption_choice = ctk.CTkOptionMenu(
+            encryption_controls,
+            values=["AES Encrypt", "AES Decrypt", "RSA Encrypt", "RSA Decrypt", "MD5 Hash", "SHA-256 Hash", "SHA-512 Hash"],
+            font=BUTTON_FONT,
+        )
+        self.encryption_choice.grid(row=0, column=1, padx=(6, 6), pady=0, sticky="ew")
+        self.encryptionKeyEntry = ctk.CTkEntry(encryption_controls, placeholder_text="AES passphrase", font=INPUT_FONT)
+        self.encryptionKeyEntry.grid(row=0, column=2, padx=(6, 0), pady=0, sticky="ew")
+
+        ctk.CTkButton(
+            frame,
+            text="Run Encryption",
+            command=self._process_text_encryption,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=4, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+
+        ctk.CTkLabel(frame, text="Output:", font=LABEL_FONT).grid(row=5, column=0, sticky="w")
+        self.outputText = ctk.CTkTextbox(frame, height=220, font=FORMAT_TEXT_FONT, wrap="none")
+        self.outputText.grid(row=6, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="nsew")
+        self.outputText.configure(state="disabled")
+
+        output_buttons = ctk.CTkFrame(frame, fg_color="transparent")
+        output_buttons.grid(row=7, column=0, columnspan=2, padx=PADX, pady=PADY, sticky="ew")
+        output_buttons.columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            output_buttons,
+            text="Copy Output",
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+            command=lambda: clipboard.copy(self.outputText.get("1.0", "end-1c")),
+        ).grid(row=0, column=0, padx=(0, 6), pady=0, sticky="ew")
+        ctk.CTkButton(
+            output_buttons,
+            text="Save Output",
+            command=self.save_output_text,
+            height=BTN_HEIGHT,
+            font=BUTTON_FONT,
+        ).grid(row=0, column=1, padx=(6, 0), pady=0, sticky="ew")
+
+    def _process_text_encryption(self):
+        text = self.inputText.get("1.0", "end-1c")
+        choice = self.encryption_choice.get()
+        passphrase = self.encryptionKeyEntry.get()
+
+        try:
+            if choice == "AES Encrypt":
+                result = self._aes_encrypt_text(text, passphrase)
+            elif choice == "AES Decrypt":
+                result = self._aes_decrypt_text(text, passphrase)
+            elif choice == "RSA Encrypt":
+                result = self._rsa_encrypt_text(text)
+            elif choice == "RSA Decrypt":
+                result = self._rsa_decrypt_text(text)
+            else:
+                result = self._hash_text(text, choice)
+        except Exception as error:
+            result = f"Encryption error: {error}"
+
+        self._show_encryption_output(result)
+
+    def _aes_encrypt_text(self, text, passphrase):
+        if AESGCM is None:
+            return "AES support requires the 'cryptography' package."
+        if not passphrase:
+            return "Enter an AES passphrase before encrypting."
+
+        key = hashlib.sha256(passphrase.encode("utf-8")).digest()
+        nonce = os.urandom(12)
+        encrypted_bytes = AESGCM(key).encrypt(nonce, text.encode("utf-8"), None)
+        return base64.b64encode(nonce + encrypted_bytes).decode("ascii")
+
+    def _aes_decrypt_text(self, text, passphrase):
+        if AESGCM is None:
+            return "AES support requires the 'cryptography' package."
+        if not passphrase:
+            return "Enter the AES passphrase used for encryption."
+
+        encrypted_data = base64.b64decode(text.strip())
+        nonce = encrypted_data[:12]
+        encrypted_bytes = encrypted_data[12:]
+        key = hashlib.sha256(passphrase.encode("utf-8")).digest()
+        return AESGCM(key).decrypt(nonce, encrypted_bytes, None).decode("utf-8")
+
+    def _rsa_encrypt_text(self, text):
+        if rsa is None:
+            return "RSA support requires the 'cryptography' package."
+
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key()
+        encrypted_bytes = public_key.encrypt(
+            text.encode("utf-8"),
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None),
+        )
+        payload = {
+            "private_key": private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode("utf-8"),
+            "public_key": public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode("utf-8"),
+            "ciphertext": base64.b64encode(encrypted_bytes).decode("ascii"),
+        }
+        return json.dumps(payload, indent=2)
+
+    def _rsa_decrypt_text(self, text):
+        if serialization is None:
+            return "RSA support requires the 'cryptography' package."
+
+        payload = json.loads(text)
+        private_key = serialization.load_pem_private_key(payload["private_key"].encode("utf-8"), password=None)
+        encrypted_bytes = base64.b64decode(payload["ciphertext"])
+        decrypted_bytes = private_key.decrypt(
+            encrypted_bytes,
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None),
+        )
+        return decrypted_bytes.decode("utf-8")
+
+    def _hash_text(self, text, choice):
+        hashers = {
+            "MD5 Hash": hashlib.md5,
+            "SHA-256 Hash": hashlib.sha256,
+            "SHA-512 Hash": hashlib.sha512,
+        }
+        return hashers[choice](text.encode("utf-8")).hexdigest()
+
+    def _show_encryption_output(self, text):
         self.outputText.configure(state="normal")
         self.outputText.delete("1.0", "end")
         self.outputText.insert("1.0", text)
