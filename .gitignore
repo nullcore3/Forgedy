@@ -21,3 +21,5 @@ icon-no-bg.png
 main.spec
 dist/
 build/
+Output/
+instalerscript.iss
