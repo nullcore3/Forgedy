@@ -306,7 +306,6 @@ impl TextUtilsPage {
         ui.heading("Text Utilities");
         ui.separator();
 
-        // Mirror Python: buttons list instead of many tabs.
         ui.horizontal_wrapped(|ui| {
             for (tab, label) in [
                 (TextUtilTab::CaseConversion, "Case"),

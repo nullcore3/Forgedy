@@ -50,12 +50,12 @@ impl eframe::App for App {
 impl App {
     fn page_settings(&mut self, ui: &mut egui::Ui) {
         ui.heading("Settings");
-        ui.label("Theme/font computation will load forgedy_settings.json once dependencies are finalized.");
+        ui.label("Theme/font computation will load forgedy_settings.json once implemented");
     }
 
     fn page_about(&mut self, ui: &mut egui::Ui) {
         ui.heading("About Forgedy");
-        ui.label("Porting Python utilities to Rust (utils split per util). UI migration to egui.");
+        ui.label("Porting Python utilities to Rust. I will finish this when I have time");
     }
 }
 

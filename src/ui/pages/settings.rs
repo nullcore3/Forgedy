@@ -53,7 +53,7 @@ impl SettingsPage {
         }
 
         ui.separator();
-        ui.label("Theme Mode (stored as ColorThemeMode)");
+        ui.label("Theme Mode");
         egui::ComboBox::from_id_source("theme_mode")
             .selected_text(&self.theme_mode)
             .show_ui(ui, |ui| {
