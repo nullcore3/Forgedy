@@ -1,0 +1,14 @@
+{
+    "Theme": {
+        "Default": {
+            "FontSizeOffset": 0,
+            "ColorTheme": "breeze",
+            "ColorThemeMode": "system"
+        },
+        "Custom": {
+            "FontSizeOffset": -1,
+            "ColorTheme": "marsh",
+            "ColorThemeMode": "system"
+        }
+    }
+}
